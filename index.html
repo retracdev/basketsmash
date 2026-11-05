@@ -1,0 +1,84 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="description" content="Basketsmash - a 3D arcade basketball game. Part of retrac.space." />
+    <meta name="theme-color" content="#0a0d18" />
+    <title>Basketsmash</title>
+    <link
+      rel="icon"
+      href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Ccircle cx='32' cy='32' r='29' fill='%23ff7a1a' stroke='%231a0d06' stroke-width='4'/%3E%3Cpath d='M3 32h58M32 3v58M12 11c10 10 10 32 0 42M52 11c-10 10-10 32 0 42' fill='none' stroke='%231a0d06' stroke-width='4'/%3E%3C/svg%3E"
+    />
+  </head>
+  <body>
+    <canvas id="game"></canvas>
+
+    <div id="hud" class="hidden">
+      <div id="scorebug" class="hidden">
+        <div class="sb-team">
+          <span class="sb-color" id="sb-hc"></span>
+          <span class="sb-abbr" id="sb-home">HOME</span>
+          <span class="sb-poss" id="sb-poss-h"></span>
+          <span class="sb-score" id="sb-hs">0</span>
+        </div>
+        <div class="sb-mid">
+          <span id="sb-period">Q1</span>
+          <span id="sb-clock">3:00</span>
+          <span id="sb-shot">24</span>
+        </div>
+        <div class="sb-team away">
+          <span class="sb-score" id="sb-as">0</span>
+          <span class="sb-poss" id="sb-poss-a"></span>
+          <span class="sb-abbr" id="sb-away">AWAY</span>
+          <span class="sb-color" id="sb-ac"></span>
+        </div>
+      </div>
+
+      <div id="arcadebar" class="hidden">
+        <div class="ab-cell"><label>MODE</label><span id="ab-title"></span></div>
+        <div class="ab-cell big"><label>SCORE</label><span id="ab-score">0</span></div>
+        <div class="ab-cell big"><label>TIME</label><span id="ab-time">60.0</span></div>
+        <div class="ab-cell"><label>&nbsp;</label><span id="ab-info"></span></div>
+      </div>
+
+      <div id="tutorial" class="hidden">
+        <div class="tut-head"><span id="tut-step">STEP 1</span><span id="tut-skip"><kbd>TAB</kbd> skip</span></div>
+        <div id="tut-title"></div>
+        <div id="tut-text"></div>
+        <div class="tut-bar"><div id="tut-progress"></div></div>
+      </div>
+
+      <div id="popup"></div>
+      <div id="toasts"></div>
+
+      <div id="meter" class="hidden">
+        <div id="meter-contest"></div>
+        <div id="meter-bar">
+          <div id="meter-fill"></div>
+          <div id="meter-green"></div>
+          <div id="meter-mark"></div>
+        </div>
+        <div id="meter-label"></div>
+      </div>
+
+      <div id="hints"></div>
+      <div id="stamina"><div id="stamina-fill"></div><span>STAMINA</span></div>
+
+      <div id="intro-card" class="hidden">
+        <div id="intro-title"></div>
+        <div id="intro-sub"></div>
+      </div>
+      <div id="skip-hint" class="hidden">PRESS ANY KEY TO SKIP</div>
+    </div>
+
+    <div id="menu"></div>
+
+    <div id="loading">
+      <div class="load-ball"></div>
+      <div class="load-text">LOADING ARENA...</div>
+    </div>
+
+    <script type="module" src="/src/main.js"></script>
+  </body>
+</html>
