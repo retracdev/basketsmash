@@ -16,6 +16,7 @@ import { Menus } from './ui/menus.js';
 import { input } from './core/input.js';
 import { audio } from './core/audio.js';
 import { storage } from './core/storage.js';
+import { initTabBranding } from './core/tab-branding.js';
 
 async function loadFonts() {
   if (!document.fonts) return;
@@ -45,6 +46,7 @@ const VIEW_NAMES = { pov: 'FIRST PERSON', third: 'THIRD PERSON', court: 'COURT' 
 
 class App {
   async init() {
+    initTabBranding();
     await loadFonts();
     this.settings = storage.settings;
     const q = this.settings.quality;
@@ -90,11 +92,21 @@ class App {
       this.intentUnlock = false;
     });
     document.getElementById('view-btn').addEventListener('click', () => this.toggleView());
+    this.wasFullscreen = !!document.fullscreenElement;
+    document.addEventListener('fullscreenchange', () => {
+      const active = !!document.fullscreenElement;
+      const exited = this.wasFullscreen && !active;
+      this.wasFullscreen = active;
+      if (exited && !this.fullscreenBusy && ['play', 'intro', 'paused'].includes(this.state)) {
+        this.pause();
+        this.menus.show('fullscreenExit');
+      }
+    });
 
     this.resize();
     window.addEventListener('resize', () => this.resize());
     document.addEventListener('visibilitychange', () => {
-      if (document.hidden && this.state === 'play') this.pause();
+      if (document.hidden) this.pause();
     });
     // Audio must start from a real user gesture.
     const unlock = () => audio.init();
@@ -163,6 +175,46 @@ class App {
   }
 
   // ------------------------------------------------------------- flow
+  offerFullscreen(onContinue) {
+    this.unlockMouse();
+    this.clearWorld();
+    this.state = 'menu';
+    this.rig.setMode('menu');
+    this.menus.show('fullscreen', { onContinue });
+  }
+
+  async chooseFullscreen(enabled) {
+    if (this.fullscreenBusy) return;
+    const screen = this.menus.screen;
+    if (screen !== 'fullscreen' && screen !== 'fullscreenExit') return;
+    const data = this.menus.data;
+    this.fullscreenBusy = true;
+    try {
+      if (enabled && !document.fullscreenElement) {
+        if (!document.documentElement.requestFullscreen) {
+          throw new Error('unsupported');
+        }
+        await document.documentElement.requestFullscreen();
+      } else if (!enabled && document.fullscreenElement) {
+        await document.exitFullscreen();
+      }
+      storage.setSetting('fullscreen', enabled);
+      // Do not replay an Esc press that the browser used to exit fullscreen.
+      input.consume('pause');
+      if (screen === 'fullscreenExit') this.resume(true);
+      else data.onContinue();
+    } catch {
+      this.menus.show(screen, {
+        ...data,
+        error: enabled
+          ? 'Fullscreen could not start. Try the button again, or choose to play without fullscreen.'
+          : 'Fullscreen could not close. Try the button again.',
+      });
+    } finally {
+      this.fullscreenBusy = false;
+    }
+  }
+
   leaveTitle() {
     audio.init();
     audio.playMusic('menu');
@@ -185,7 +237,8 @@ class App {
     document.getElementById('skip-hint').classList.add('hidden');
   }
 
-  startMatch(cfg) {
+  startMatch(cfg, ready = false) {
+    if (!ready) return this.offerFullscreen(() => this.startMatch(cfg, true));
     this.clearWorld();
     this.lastMatch = cfg;
     this.menus.hide();
@@ -278,7 +331,8 @@ class App {
     if (this.lastMatch) this.startMatch(this.lastMatch);
   }
 
-  startArcade(cfg) {
+  startArcade(cfg, ready = false) {
+    if (!ready) return this.offerFullscreen(() => this.startArcade(cfg, true));
     this.clearWorld();
     this.lastArcade = cfg;
     this.menus.hide();
@@ -311,7 +365,8 @@ class App {
     if (this.lastArcade) this.startArcade(this.lastArcade);
   }
 
-  startTutorial() {
+  startTutorial(ready = false) {
+    if (!ready) return this.offerFullscreen(() => this.startTutorial(true));
     this.clearWorld();
     this.menus.hide();
     const t = new Tutorial(this);
@@ -332,7 +387,8 @@ class App {
   }
 
   pause() {
-    if (this.state !== 'play') return;
+    if (this.state !== 'play' && this.state !== 'intro') return;
+    this.pausedState = this.state;
     this.unlockMouse();
     this.state = 'paused';
     audio.setMusicLevel(0.15);
@@ -340,11 +396,12 @@ class App {
     this.menus.show('pause');
   }
 
-  resume() {
+  resume(fullscreenChoice = false) {
     if (this.state !== 'paused') return;
+    if (this.menus.screen === 'fullscreenExit' && !fullscreenChoice) return;
     this.menus.hide();
-    this.state = 'play';
-    audio.setMusicLevel(this.world instanceof Match ? 0.45 : 0.4);
+    this.state = this.pausedState || 'play';
+    audio.setMusicLevel(this.state === 'intro' ? 1 : this.world instanceof Match ? 0.45 : 0.4);
   }
 
   quitToMenu(showMain = true) {
@@ -398,7 +455,7 @@ class App {
     }
 
     const ctx = w && w.cameraContext ? w.cameraContext() : {};
-    this.rig.update(dt, ctx);
+    this.rig.update(this.state === 'paused' ? 0 : dt, ctx);
     this.arena.update(dt);
     this.particles.update(dt);
     const playing = this.state === 'play' && !!w;

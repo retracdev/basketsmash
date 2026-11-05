@@ -26,6 +26,7 @@ const DEFAULTS = {
     hints: true,
     view: 'pov',
     autoLook: 'max',
+    fullscreen: true,
     quality: 'medium',
     quarter: 3,
     difficulty: 1,

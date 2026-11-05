@@ -278,6 +278,11 @@ kbd {
 }
 .settings input.focus { box-shadow: 0 0 0 3px var(--led); }
 .note { font-size: 19px; color: #889; text-align: center; margin-top: 10px; }
+.fullscreen-prompt { width: min(560px, 100%); min-width: 0; }
+.fullscreen-prompt p { margin: 0 0 8px; font-size: 22px; }
+.fullscreen-prompt .board-title { text-transform: none; }
+.fullscreen-prompt .fullscreen-error { color: #ffd60a; font-size: 18px; }
+.fullscreen-error:empty { display: none; }
 
 /* How to play */
 .howto { display: grid; grid-template-columns: 1fr 1fr; gap: 26px; width: min(1050px, 94vw); font-size: 22px; line-height: 1.15; }
