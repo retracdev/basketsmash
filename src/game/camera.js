@@ -1,6 +1,6 @@
 import * as THREE from 'three';
 import { HOOP_X } from '../core/constants.js';
-import { clamp, smooth } from '../core/utils.js';
+import { clamp, smooth, angleLerp } from '../core/utils.js';
 
 export class CameraRig {
   constructor(camera) {
@@ -13,6 +13,24 @@ export class CameraRig {
     this.orbit = 0;
     this.intro = null;
     this.fov = 45;
+    // First-person view state
+    this.yaw = 0;
+    this.pitch = 0;
+    this.lookIdle = 9;
+    this.povReady = false;
+    this.bob = 0;
+  }
+
+  // Manual look input (mouse / right stick / arrow keys), radians.
+  addLook(dYaw, dPitch) {
+    if (Math.abs(dYaw) + Math.abs(dPitch) < 1e-5) return;
+    this.yaw += dYaw;
+    this.pitch = clamp(this.pitch + dPitch, -1.1, 1.1);
+    this.lookIdle = 0;
+  }
+
+  get isPov() {
+    return this.mode === 'pov';
   }
 
   shake(a) {
@@ -20,6 +38,10 @@ export class CameraRig {
   }
 
   setMode(mode, snap = false) {
+    if (mode === 'pov' && this.mode !== 'pov') {
+      this.povReady = false;
+      snap = true;
+    }
     this.mode = mode;
     this.snap = snap;
   }
@@ -113,6 +135,43 @@ export class CameraRig {
         tl.y = 1.6;
         fov = 52;
         rate = 4;
+        break;
+      }
+      case 'pov': {
+        const u = ctx.user;
+        if (!u) break;
+        const eye = new THREE.Vector3(u.pos.x, u.y + u.height * 0.93, u.pos.z);
+        // Point the view at the action when the player isn't steering.
+        if (ctx.lookAt) {
+          const dx = ctx.lookAt.x - eye.x, dz = ctx.lookAt.z - eye.z;
+          const hd = Math.hypot(dx, dz);
+          const tYaw = Math.atan2(dx, dz);
+          const tPitch = clamp(Math.atan2(ctx.lookAt.y - eye.y, Math.max(hd, 0.5)), -0.45, 0.4);
+          if (!this.povReady) {
+            this.yaw = hd > 0.3 ? tYaw : u.facing;
+            this.pitch = tPitch;
+            this.povReady = true;
+          } else if (this.lookIdle > 1.1 && hd > 0.8) {
+            const k = 1 - Math.exp(-(ctx.steerRate ?? 2.4) * dt);
+            this.yaw = angleLerp(this.yaw, tYaw, k);
+            this.pitch += (tPitch - this.pitch) * k;
+          }
+        } else if (!this.povReady) {
+          this.yaw = u.facing;
+          this.pitch = -0.08;
+          this.povReady = true;
+        }
+        this.lookIdle += dt;
+        // Gentle head bob while running.
+        const spd = u.airborne ? 0 : u.speed;
+        this.bob += dt * (4 + spd * 1.6);
+        eye.y += Math.sin(this.bob * 2) * Math.min(spd, 7) * 0.006;
+        const fwd = new THREE.Vector3(Math.sin(this.yaw) * Math.cos(this.pitch), Math.sin(this.pitch), Math.cos(this.yaw) * Math.cos(this.pitch));
+        eye.addScaledVector(new THREE.Vector3(fwd.x, 0, fwd.z).normalize(), 0.14);
+        tp.copy(eye);
+        tl.copy(eye).add(fwd);
+        fov = 74;
+        rate = 1000;
         break;
       }
       case 'fixed': {

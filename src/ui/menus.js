@@ -238,9 +238,9 @@ export class Menus {
         <label>MUSIC</label>${range('music')}
         <label>SOUND FX</label>${range('sfx')}
         <label>CROWD</label>${range('crowd')}
-        <label>ANNOUNCER</label>${seg('announcer', [[true, 'ON'], [false, 'OFF']], s.announcer)}
+        <label>COMMENTARY</label>${seg('announcer', [[true, 'ON'], [false, 'OFF']], s.announcer)}
         <label>CONTROL HINTS</label>${seg('hints', [[true, 'ON'], [false, 'OFF']], s.hints)}
-        <label>CAMERA</label>${seg('camera', [['broadcast', 'BROADCAST'], ['player', 'PLAYER']], s.camera)}
+        <label>VIEW</label>${seg('view', [['pov', 'FIRST PERSON'], ['court', 'COURT']], s.view)}
         <label>GRAPHICS</label>${seg('quality', [['low', 'LOW'], ['medium', 'MEDIUM'], ['high', 'HIGH']], s.quality)}
         <label>DIFFICULTY</label>${seg('difficulty', DIFF.names.map((n, i) => [i, n]), s.difficulty)}
       </div>
@@ -271,9 +271,11 @@ export class Menus {
           </div>
           <h4 style="margin-top:16px">OTHER</h4>
           <div class="ctrl">
-            <div><kbd>C</kbd></div><div>Switch camera</div>
+            <div><kbd>C</kbd></div><div>Switch view: first person / court (any time)</div>
+            <div>MOUSE</div><div>First person: click to look · left click shoot · right click pass</div>
+            <div><kbd>&larr;</kbd><kbd>&rarr;</kbd></div><div>First person: turn without a mouse</div>
             <div><kbd>ESC</kbd></div><div>Pause</div>
-            <div>GAMEPAD</div><div>Stick move · A shoot · X pass/steal · B crossover · RT sprint · Y camera</div>
+            <div>GAMEPAD</div><div>L-stick move · R-stick look · A shoot · X pass/steal · B crossover · RT sprint · Y view</div>
           </div>
         </div>
         <div>

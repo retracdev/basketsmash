@@ -118,6 +118,7 @@ export class Arena {
     this.ribbons = [];
     this.ledMats = [];
     const aniso = renderer.capabilities.getMaxAnisotropy();
+    this.aniso = aniso;
     this.buildFloor(aniso);
     this.buildHoop(1);
     this.buildHoop(-1);
@@ -314,8 +315,8 @@ export class Arena {
 
     // Front wall with LED ad ribbon around the floor.
     const wallPath = roundedRect(A - 0.05, B - 0.05, R - 0.05);
-    const ribTex = ribbonTexture();
-    ribTex.repeat.set(1 / 14, 1);
+    const ribTex = ribbonTexture(this.aniso);
+    ribTex.repeat.set(1 / 8, 1);
     const ribbonMat = new THREE.MeshBasicMaterial({ map: ribTex, side: THREE.DoubleSide });
     const wall = new THREE.Mesh(stripGeometry(wallPath, 0, wallPath, 0.95, 1), ribbonMat);
     this.group.add(wall);
@@ -324,9 +325,11 @@ export class Arena {
     // Fascia ribbon between tiers.
     const fOff = lowerTopOff + 0.6;
     const fPath = roundedRect(A + fOff, B + fOff, R + fOff);
-    const fTex = ribbonTexture();
-    fTex.repeat.set(1 / 16, 1);
-    const fascia = new THREE.Mesh(stripGeometry(fPath, lowerTopY + 0.5, fPath, lowerTopY + 2.3, 1), new THREE.MeshBasicMaterial({ map: fTex, side: THREE.DoubleSide }));
+    const fTex = ribbonTexture(this.aniso);
+    fTex.repeat.set(1 / 10, 1);
+    // Sit the ribbon in front of the fascia wall so the two never z-fight.
+    const rPath = roundedRect(A + fOff - 0.12, B + fOff - 0.12, R + fOff - 0.12);
+    const fascia = new THREE.Mesh(stripGeometry(rPath, lowerTopY + 0.5, rPath, lowerTopY + 2.3, 1), new THREE.MeshBasicMaterial({ map: fTex, side: THREE.DoubleSide }));
     this.group.add(fascia);
     this.ribbons.push({ tex: fTex, speed: -0.008 });
     const fWall = new THREE.Mesh(stripGeometry(fPath, lowerTopY, fPath, lowerTopY + 2.6), new THREE.MeshLambertMaterial({ color: 0x0c0e16, side: THREE.DoubleSide }));
@@ -403,8 +406,8 @@ export class Arena {
     const table = new THREE.Mesh(new THREE.BoxGeometry(8, 0.85, 0.8), new THREE.MeshLambertMaterial({ color: 0x0b0d14 }));
     table.position.set(0, 0.425, tableZ);
     this.group.add(table);
-    const tTex = ribbonTexture();
-    tTex.repeat.set(0.25, 1);
+    const tTex = ribbonTexture(this.aniso);
+    tTex.repeat.set(0.5, 1);
     const tFront = new THREE.Mesh(new THREE.PlaneGeometry(8, 0.7), new THREE.MeshBasicMaterial({ map: tTex }));
     tFront.position.set(0, 0.45, tableZ + 0.41);
     this.group.add(tFront);

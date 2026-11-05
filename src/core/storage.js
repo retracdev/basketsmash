@@ -24,7 +24,7 @@ const DEFAULTS = {
     crowd: 0.7,
     announcer: true,
     hints: true,
-    camera: 'broadcast',
+    view: 'pov',
     quality: 'medium',
     quarter: 3,
     difficulty: 1,

@@ -1,4 +1,4 @@
-// Fully procedural audio: music sequencer, arena crowd, sound effects and announcer.
+// Fully procedural audio: music sequencer, arena crowd and sound effects.
 // Nothing is sampled, so there are no licensing concerns.
 
 const mtof = (m) => 440 * Math.pow(2, (m - 69) / 12);
@@ -624,28 +624,26 @@ class AudioEngine {
     else if (kind === 'tick') this.tone('square', 1200, 1200, 0.02, 0.04, t);
   }
 
-  // -------------------------------------------------------------- announcer
-  announce(text, { force = false, rate = 1.05, pitch = 0.75 } = {}) {
-    if (!this.announcer || !('speechSynthesis' in window)) return;
+  // ------------------------------------------------------------ commentary
+  // Play-by-play is shown as on-screen captions (no synthesized voice).
+  commentary(text, { force = false } = {}) {
+    if (!this.announcer || !this.onCaption) return;
     const now = performance.now();
-    if (!force && now - this.lastSpeak < 3500) return;
+    if (!force && now - this.lastSpeak < 2500) return;
     this.lastSpeak = now;
-    const synth = window.speechSynthesis;
-    if (force) synth.cancel();
-    const u = new SpeechSynthesisUtterance(text);
-    const voices = synth.getVoices();
-    const v =
-      voices.find((x) => /en/i.test(x.lang) && /male|david|daniel|guy|fred|alex/i.test(x.name)) ||
-      voices.find((x) => /en/i.test(x.lang));
-    if (v) u.voice = v;
-    u.rate = rate;
-    u.pitch = pitch;
-    u.volume = Math.min(1, this.vol.sfx + 0.1);
-    synth.speak(u);
+    this.onCaption(text);
   }
 
-  stopSpeech() {
-    if ('speechSynthesis' in window) window.speechSynthesis.cancel();
+  clearCommentary() {
+    if (this.onCaption) this.onCaption(null);
+  }
+
+  // Bright two-note chime: the ball just landed in your hands.
+  yourBall() {
+    if (!this.ctx) return;
+    const t = this.now;
+    this.tone('triangle', 784, 784, 0.12, 0.12, t);
+    this.tone('triangle', 1175, 1175, 0.18, 0.12, t + 0.08);
   }
 }
 

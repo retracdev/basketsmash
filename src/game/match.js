@@ -2,7 +2,7 @@ import * as THREE from 'three';
 import { PlayWorld } from './world.js';
 import { Player } from '../entities/player.js';
 import { starters } from '../data/teams.js';
-import { COURT, SHOT_CLOCK, inBounds } from '../core/constants.js';
+import { COURT, HOOP_X, SHOT_CLOCK, inBounds } from '../core/constants.js';
 import { clamp, rand, pick, chance, formatClock, hexToCss } from '../core/utils.js';
 import { audio } from '../core/audio.js';
 import { updateAI, resetAI, moveTo, guardPosition } from './ai.js';
@@ -48,6 +48,7 @@ export class Match extends PlayWorld {
     this.runs = [0, 0];
     this.onFinished = null;
     this.buzzerBeater = false;
+    this.courtView = 'broadcast';
     this.lineup();
   }
 
@@ -96,7 +97,6 @@ export class Match extends PlayWorld {
     this.app.hud.popup('TIP OFF', 'big');
     audio.whistle();
     audio.setCrowd(1);
-    this.app.rig.setMode(this.app.settings.camera === 'player' ? 'player' : 'broadcast');
   }
 
   updateTipoff(dt) {
@@ -312,7 +312,7 @@ export class Match extends PlayWorld {
     this.phaseT = 0;
     const label = q >= 4 ? 'OVERTIME!' : q === 2 ? 'HALFTIME' : `END OF Q${q}`;
     this.app.hud.popup(label, 'big');
-    if (q === 2) audio.announce(`Halftime. ${this.scoreLine()}`);
+    if (q === 2) audio.commentary(`Halftime. ${this.scoreLine()}`);
     audio.horn();
   }
 
@@ -339,7 +339,7 @@ export class Match extends PlayWorld {
     this.app.hud.popup(win === 0 ? 'YOU WIN!' : 'FINAL', 'big');
     audio.cheer(win === 0 ? 1.6 : 0.6, 4);
     this.app.arena.cheer(win === 0 ? 1 : 0.4);
-    audio.announce(`That's the game! ${this.teams[win].data.city} ${this.teams[win].data.name} win it, ${Math.max(s0, s1)} to ${Math.min(s0, s1)}!`, { force: true });
+    audio.commentary(`That's the game! ${this.teams[win].data.city} ${this.teams[win].data.name} win it, ${Math.max(s0, s1)} to ${Math.min(s0, s1)}!`, { force: true });
     const t = this.teams[win].data;
     this.confettiColors = [t.primary, t.secondary, t.accent, 0xffffff];
   }
@@ -436,20 +436,20 @@ export class Match extends PlayWorld {
     this.app.hud.popup(intercept ? 'PICKED OFF!' : 'STOLEN!', d.team === 0 ? 'good' : 'bad');
     if (user || d.team === 0) audio.cheer(0.8, 1.5);
     else audio.ooh();
-    if (chance(0.6)) audio.announce(pick(['Picked his pocket!', 'Stolen!', 'What a steal!', 'Turnover!']));
+    if (chance(0.6)) audio.commentary(pick(['Picked his pocket!', 'Stolen!', 'What a steal!', 'Turnover!']));
   }
 
   onBlock(d, shooter) {
     this.app.hud.popup('REJECTED!', d.team === 0 ? 'good' : 'bad');
     audio.cheer(d.team === 0 ? 1.1 : 0.4, 1.8);
     this.app.arena.cheer(0.8);
-    audio.announce(pick(['Rejected!', 'Get that out of here!', 'Denied!', 'Not in my house!']));
+    audio.commentary(pick(['Rejected!', 'Get that out of here!', 'Denied!', 'Not in my house!']));
   }
 
   onAnkles(p, d) {
     this.app.hud.popup('ANKLES!', p.team === 0 ? 'good' : 'bad');
     audio.ooh();
-    audio.announce(pick(['Oh, he broke his ankles!', 'Shook him!', 'Down he goes!']));
+    audio.commentary(pick(['Oh, he broke his ankles!', 'Shook him!', 'Down he goes!']));
   }
 
   onShotRelease(p, info, res) {
@@ -470,7 +470,7 @@ export class Match extends PlayWorld {
     audio.cheer(1.3, 2.5);
     const s = p.isUser ? 'good' : p.team === 0 ? 'good' : 'bad';
     this.app.hud.popup(style === 'windmill' ? 'WINDMILL!' : p.action && p.action.alley ? 'ALLEY-OOP!' : 'SLAM!', s);
-    audio.announce(pick(['Oh what a slam!', 'Throw it down!', 'With authority!', 'Boom! Posterized!', 'Monster jam!']), { force: true });
+    audio.commentary(pick(['Oh what a slam!', 'Throw it down!', 'With authority!', 'Boom! Posterized!', 'Monster jam!']), { force: true });
   }
 
   onScore(b, side, team, pts, shot, clean) {
@@ -489,7 +489,7 @@ export class Match extends PlayWorld {
       this.onFire++;
       if (this.onFire === 3) {
         this.app.hud.popup("YOU'RE ON FIRE!", 'fire');
-        audio.announce('He is heating up!', { force: true });
+        audio.commentary('He is heating up!', { force: true });
       }
     }
     // Feedback
@@ -498,7 +498,7 @@ export class Match extends PlayWorld {
       this.app.hud.popup('BUZZER BEATER!', isUserTeam ? 'good' : 'bad');
       audio.cheer(2, 4);
       this.app.arena.cheer(1);
-      audio.announce('At the buzzer! Unbelievable!', { force: true });
+      audio.commentary('At the buzzer! Unbelievable!', { force: true });
     } else if (shot && shot.kind === 'dunk') {
       // handled by onDunk
     } else {
@@ -506,9 +506,9 @@ export class Match extends PlayWorld {
       if (shot && shot.perfect && shot.kind === 'jumper') label = pts === 3 ? 'SPLASH! +3' : 'PERFECT +2';
       else if (clean) label = pts === 3 ? 'SWISH! +3' : 'SWISH +2';
       this.app.hud.popup(label, isUserTeam ? 'good' : 'bad');
-      if (pts === 3 && shot && shot.dist > 9) audio.announce('From way downtown!', { force: true });
-      else if (pts === 3 && chance(0.5)) audio.announce(pick(['Bang!', 'Splash!', 'From downtown!', 'Three ball!']));
-      else if (chance(0.15)) audio.announce(pick(['Count it!', 'Nothing but net!', 'Good!']));
+      if (pts === 3 && shot && shot.dist > 9) audio.commentary('From way downtown!', { force: true });
+      else if (pts === 3 && chance(0.5)) audio.commentary(pick(['Bang!', 'Splash!', 'From downtown!', 'Three ball!']));
+      else if (chance(0.15)) audio.commentary(pick(['Count it!', 'Nothing but net!', 'Good!']));
     }
     if (isUserTeam) {
       audio.cheer(pts === 3 ? 1.3 : 1, 2.2);
@@ -561,18 +561,29 @@ export class Match extends PlayWorld {
         ? (u.hasBall
           ? [['SPACE', 'Shoot (hold/release)'], ['E', 'Pass'], ['Q', 'Crossover'], ['SHIFT', 'Sprint']]
           : [['E', 'Call for ball'], ['SPACE', 'Jump'], ['SHIFT', 'Sprint']])
-        : [['SPACE', 'Block / Jump'], ['E', 'Steal'], ['Q (hold)', 'Auto-guard'], ['SHIFT', 'Sprint']]);
+        : [['SPACE', 'Block / Jump'], ['E', 'Steal (get close)'], ['Q (hold)', 'Auto-guard'], ['SHIFT', 'Sprint']]);
       hud.setStamina(u.stamina);
     }
   }
 
   cameraContext() {
     const u = this.user;
+    const b = this.ball;
+    let lookAt = null;
+    if (u) {
+      // First person auto-look: the rim when you have it, otherwise the ball.
+      lookAt = u.hasBall
+        ? new THREE.Vector3(this.attackSide(u.team) * HOOP_X, 2.7, 0)
+        : new THREE.Vector3(b.pos.x, b.holder ? 1.3 : Math.max(0.8, b.pos.y), b.pos.z);
+    }
     return {
-      focus: this.ball.pos,
+      focus: b.pos,
       user: u,
+      lookAt,
+      steerRate: u && u.hasBall ? 2.2 : 3,
       offense: u && this.possession === u.team,
       side: u ? (this.possession === u.team || this.possession === -1 ? this.attackSide(u.team) : this.attackSide(1 - u.team)) : 1,
     };
   }
+
 }

@@ -232,7 +232,11 @@ function bestPass(m, p, side) {
     let score = clamp((open - 1) / 2.5, 0, 1) * 0.6 + rating * 0.45;
     if (d > THREE_R + 1.5) score -= 0.4;
     if (t.ai && t.ai.cutT > 0 && d < 4) score += 0.4;
-    if (t.isUser) score += 0.12;
+    if (t.isUser) {
+      // Feed the human when they're open in the frontcourt.
+      const inFront = m.attackSide(t.team) * t.pos.x > 0;
+      score += 0.15 + (open > 2.4 && inFront && d < 9.5 ? 0.35 : 0);
+    }
     if (m.laneBlocked(p, t)) score -= 0.6;
     const alley = t.ai && t.ai.cutT > 0 && d < 4.5 && d > 1.5 && t.s.dnk > 0.7 && p.s.pas > 0.55 && chance(0.5);
     if (alley) score += 0.3;

@@ -27,6 +27,10 @@ export class Hud {
     this.arcadeEl = $('arcadebar');
     this.tutEl = $('tutorial');
     this.introEl = $('intro-card');
+    this.captionEl = $('caption');
+    this.noticeEl = $('notice');
+    this.viewBtn = $('view-btn');
+    this.lookHint = $('look-hint');
     this.cache = {};
     this.showHints = true;
   }
@@ -34,6 +38,8 @@ export class Hud {
   show(on) {
     this.el.classList.toggle('hidden', !on);
     if (!on) {
+      this.caption(null);
+      this.setLookHint(false);
       this.meterEl.classList.add('hidden');
       this.popupEl.className = '';
       this.popupEl.textContent = '';
@@ -101,6 +107,37 @@ export class Hud {
     setTimeout(() => t.remove(), 2200);
   }
 
+  // Play-by-play line at the bottom of the screen.
+  caption(text) {
+    clearTimeout(this.captionTimer);
+    if (!text) {
+      this.captionEl.classList.remove('show');
+      return;
+    }
+    this.captionEl.innerHTML = `<b>&#9654;</b>${text}`;
+    this.captionEl.classList.add('show');
+    this.captionTimer = setTimeout(() => this.captionEl.classList.remove('show'), 2600);
+  }
+
+  notice(text) {
+    const el = this.noticeEl;
+    el.className = '';
+    void el.offsetWidth;
+    el.textContent = text;
+    el.className = 'show';
+  }
+
+  setView(name, show = true) {
+    this.viewBtn.classList.toggle('hidden', !show);
+    $('view-name').textContent = name;
+  }
+
+  setLookHint(show) {
+    if (this.cache.lookHint === show) return;
+    this.cache.lookHint = show;
+    this.lookHint.classList.toggle('hidden', !show);
+  }
+
   shotFeedback(label, grade) {
     this.meterLabel.textContent = label;
     this.meterLabel.className = grade || '';
@@ -159,7 +196,7 @@ export class Hud {
   }
 
   // Shot meter floats beside the shooter.
-  updateMeter(meter, camera, w, h) {
+  updateMeter(meter, camera, w, h, fixed = false) {
     const el = this.meterEl;
     if (!meter) {
       if (!this.cache.meterHidden) {
@@ -175,9 +212,16 @@ export class Hud {
       this.meterLabel.className = '';
     }
     const p = meter.player;
-    _v.set(p.pos.x, p.y + p.height * 0.75, p.pos.z).project(camera);
-    const x = (_v.x * 0.5 + 0.5) * w + 46;
-    const y = (-_v.y * 0.5 + 0.5) * h - 70;
+    let x, y;
+    if (fixed) {
+      // First person: the shooter is the camera, so pin the meter beside the crosshair area.
+      x = w * 0.5 + 110;
+      y = h * 0.5 - 60;
+    } else {
+      _v.set(p.pos.x, p.y + p.height * 0.75, p.pos.z).project(camera);
+      x = (_v.x * 0.5 + 0.5) * w + 46;
+      y = (-_v.y * 0.5 + 0.5) * h - 70;
+    }
     el.style.transform = `translate(${x.toFixed(0)}px, ${y.toFixed(0)}px)`;
     const scale = JUMPER.autoRelease;
     const fill = Math.min(1, meter.value / scale);

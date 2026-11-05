@@ -434,6 +434,45 @@ kbd {
 }
 #skip-hint { position: absolute; right: 24px; bottom: 22px; font-family: var(--title); font-size: 14px; letter-spacing: 2px; color: rgba(255, 255, 255, 0.7); animation: blink 1.2s steps(2, start) infinite; }
 
+/* Commentary caption (replaces the voice announcer) */
+#caption {
+  position: absolute; left: 50%; bottom: 96px; transform: translateX(-50%); max-width: 70vw;
+  font-family: var(--body); font-size: 28px; letter-spacing: 1px; color: #fff; text-align: center; white-space: nowrap;
+  padding: 2px 18px; border-radius: 8px; background: rgba(10, 13, 24, 0.72); border-left: 4px solid var(--orange);
+  opacity: 0; transition: opacity 0.25s;
+}
+#caption.show { opacity: 1; }
+#caption b { color: var(--led); font-weight: 600; margin-right: 8px; }
+
+/* Small, non-intrusive "you have the ball" notice */
+#notice {
+  position: absolute; left: 50%; top: 62%; transform: translateX(-50%);
+  font-family: var(--title); font-size: 15px; letter-spacing: 2px; color: #022;
+  background: var(--cyan); padding: 6px 14px; border-radius: 20px; box-shadow: 0 3px 0 #0a5560;
+  opacity: 0; pointer-events: none;
+}
+#notice.show { animation: noticeIn 1.6s ease-out forwards; }
+@keyframes noticeIn {
+  0% { opacity: 0; transform: translate(-50%, 10px); }
+  12% { opacity: 1; transform: translate(-50%, 0); }
+  75% { opacity: 1; }
+  100% { opacity: 0; transform: translate(-50%, -6px); }
+}
+
+#view-btn {
+  position: absolute; right: 22px; top: 18px; pointer-events: auto; cursor: pointer;
+  display: flex; align-items: center; gap: 8px; font-family: var(--title); font-size: 13px; letter-spacing: 1px;
+  color: var(--led); background: rgba(10, 13, 24, 0.85); border: 2px solid #2a3150; border-radius: 20px; padding: 6px 8px 6px 14px;
+}
+#view-btn:hover { border-color: var(--led); }
+#view-btn::before { content: 'VIEW:'; color: #889; }
+#look-hint {
+  position: absolute; left: 50%; top: 18px; transform: translateX(-50%);
+  font-family: var(--title); font-size: 12px; letter-spacing: 2px; color: rgba(255, 255, 255, 0.8);
+  background: rgba(10, 13, 24, 0.7); padding: 6px 12px; border-radius: 14px;
+}
+#arcadebar:not(.hidden) ~ #look-hint { top: 92px; }
+
 @media (max-height: 760px) {
   .card { width: 190px; height: 128px; }
   .card .abbr { font-size: 36px; }
