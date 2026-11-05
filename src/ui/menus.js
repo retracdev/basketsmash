@@ -4,6 +4,8 @@ import { storage } from '../core/storage.js';
 import { audio } from '../core/audio.js';
 import { input } from '../core/input.js';
 import { DIFF } from '../game/shooting.js';
+import { getAccountSession, subscribeAccountSession } from '../core/account-session.js';
+import { AccountSignIn, accountIconUrl } from './account-sign-in.js';
 
 const BALL = '<span class="bball"></span>';
 const LOGO = '<span class="rs-logo"><span class="a">retrac</span><span class="b">.space</span></span>';
@@ -62,6 +64,16 @@ export class Menus {
     this.data = {};
     this.focus = 0;
     this.navCd = 0;
+    this.accountDialog = new AccountSignIn(this);
+    subscribeAccountSession(() => this.updateAccountCard());
+    // A returned DOM focus on the account button should use a direct key gesture.
+    this.root.addEventListener('keydown', (event) => {
+      if (event.target.matches('[data-act="account"]') && ['Enter', 'Space'].includes(event.code)) {
+        event.preventDefault();
+        event.stopPropagation();
+        this.accountDialog.show();
+      }
+    });
     this.root.addEventListener('click', (e) => this.onClick(e));
     // Keep DOM focus off buttons so Enter isn't handled twice (native click + our nav).
     this.root.addEventListener('mousedown', (e) => {
@@ -92,7 +104,7 @@ export class Menus {
     this.screen = name;
     this.data = data;
     const html = this[`r_${name}`](data);
-    this.root.innerHTML = `<div class="screen ${name === 'title' || name === 'main' ? 'vignette' : ''}">${html}</div>`;
+    this.root.innerHTML = `<div class="screen ${name === 'main' ? 'main-menu-screen' : ''} ${name === 'title' || name === 'main' ? 'vignette' : ''}">${html}</div>`;
     this.root.classList.toggle('dim', ['pause', 'fullscreenExit', 'results', 'arcadeResults', 'settings', 'howto'].includes(name) && this.app.state !== 'menu');
     this.focus = 0;
     const pre = this.root.querySelector('[data-focus]');
@@ -109,7 +121,16 @@ export class Menus {
   }
 
   navs() {
-    return [...this.root.querySelectorAll('.nav')];
+    return [...this.root.querySelectorAll('.nav')].filter((el) => !el.closest('[hidden]'));
+  }
+
+  updateAccountCard() {
+    const card = this.root.querySelector('.account-card');
+    if (!card) return;
+    const focused = this.navs()[this.focus];
+    card.hidden = getAccountSession().status !== 'guest';
+    const index = this.navs().indexOf(focused);
+    this.setFocus(Math.max(0, index), false);
   }
 
   setFocus(i, scroll = true) {
@@ -148,6 +169,11 @@ export class Menus {
         ${btn('tutorial', 'TUTORIAL', { sub: 'LEARN THE MOVES', badge: newb ? 'START HERE' : '' })}
         ${btn('howto', 'HOW TO PLAY', { sub: 'CONTROLS & SHOOTING', cls: 'dark' })}
         ${btn('settings', 'SETTINGS', { sub: 'AUDIO · CAMERA · GRAPHICS', cls: 'dark' })}
+        <section class="account-card" ${getAccountSession().status === 'guest' ? '' : 'hidden'} aria-labelledby="account-card-title">
+          <h3 id="account-card-title">Take your game further</h3>
+          <p>Sign in or create a retrac.space account to unlock more features.</p>
+          <button type="button" class="btn nav" data-act="account"><img src="${accountIconUrl}" alt="" aria-hidden="true"><span>Sign in with retrac.space</span></button>
+        </section>
       </div>
     </div>`;
   }
@@ -400,6 +426,9 @@ export class Menus {
     if (act === 'back') audio.ui('back');
     else audio.ui('select');
     switch (act) {
+      case 'account':
+        this.accountDialog.show();
+        break;
       case 'fullscreenOn':
       case 'fullscreenOff':
         app.chooseFullscreen(act === 'fullscreenOn');
@@ -550,6 +579,7 @@ export class Menus {
 
   // ------------------------------------------------------------ input
   update(dt) {
+    if (this.accountDialog.isOpen) return;
     if (!this.screen) return;
     if (this.screen === 'title') {
       if (input.anyPressed) this.app.leaveTitle();
