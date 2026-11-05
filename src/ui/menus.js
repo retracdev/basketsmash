@@ -19,8 +19,8 @@ function shade(hex, f) {
 }
 const statColor = (v) => (v >= 85 ? '#30e070' : v >= 72 ? '#ffd60a' : v >= 60 ? '#ff9a3a' : '#ff5a4a');
 
-function btn(act, label, { sub = '', cls = '', arg = '', badge = '' } = {}) {
-  return `<button class="btn nav ${cls}" data-act="${act}" data-arg="${arg}">${cls.includes('center') ? '' : BALL}<span class="label">${label}${sub ? `<span class="sub">${sub}</span>` : ''}</span>${badge ? `<span class="badge">${badge}</span>` : ''}</button>`;
+function btn(act, label, { sub = '', cls = '', arg = '', badge = '', focus = false } = {}) {
+  return `<button class="btn nav ${cls}" data-act="${act}" data-arg="${arg}" ${focus ? 'data-focus' : ''}>${cls.includes('center') ? '' : BALL}<span class="label">${label}${sub ? `<span class="sub">${sub}</span>` : ''}</span>${badge ? `<span class="badge">${badge}</span>` : ''}</button>`;
 }
 
 function seg(key, options, value) {
@@ -93,7 +93,7 @@ export class Menus {
     this.data = data;
     const html = this[`r_${name}`](data);
     this.root.innerHTML = `<div class="screen ${name === 'title' || name === 'main' ? 'vignette' : ''}">${html}</div>`;
-    this.root.classList.toggle('dim', ['pause', 'results', 'arcadeResults', 'settings', 'howto'].includes(name) && this.app.state !== 'menu');
+    this.root.classList.toggle('dim', ['pause', 'fullscreenExit', 'results', 'arcadeResults', 'settings', 'howto'].includes(name) && this.app.state !== 'menu');
     this.focus = 0;
     const pre = this.root.querySelector('[data-focus]');
     const list = this.navs();
@@ -301,6 +301,27 @@ export class Menus {
     </div>`;
   }
 
+  r_fullscreen(d) {
+    return `<div class="board menu-col fullscreen-prompt" role="dialog" aria-modal="true" aria-labelledby="fullscreen-title" aria-describedby="fullscreen-description">
+      <div class="board-title" id="fullscreen-title">Turn on fullscreen</div>
+      <p id="fullscreen-description">Get the best experience by going fullscreen.</p>
+      ${btn('fullscreenOn', 'Turn on fullscreen', { focus: storage.settings.fullscreen })}
+      ${btn('fullscreenOff', 'Keep fullscreen off', { cls: 'dark', focus: !storage.settings.fullscreen })}
+      <div class="note">Your choice is saved. We ask before each game.</div>
+      <p class="fullscreen-error" role="status">${d.error || ''}</p>
+    </div>`;
+  }
+
+  r_fullscreenExit(d) {
+    return `<div class="board menu-col fullscreen-prompt" role="dialog" aria-modal="true" aria-labelledby="fullscreen-title" aria-describedby="fullscreen-description">
+      <div class="board-title" id="fullscreen-title">You left fullscreen.</div>
+      <p id="fullscreen-description">You left fullscreen mode. Do you want to enter fullscreen again, or play without it?</p>
+      ${btn('fullscreenOn', 'Back into fullscreen', { focus: storage.settings.fullscreen })}
+      ${btn('fullscreenOff', 'Turn off fullscreen', { cls: 'dark', focus: !storage.settings.fullscreen })}
+      <p class="fullscreen-error" role="status">${d.error || ''}</p>
+    </div>`;
+  }
+
   r_pause() {
     return `<div class="board menu-col">
       <div class="board-title">PAUSED</div>
@@ -373,11 +394,16 @@ export class Menus {
   }
 
   act(act, arg) {
+    if (this.app.fullscreenBusy) return;
     const app = this.app;
     const d = this.data;
     if (act === 'back') audio.ui('back');
     else audio.ui('select');
     switch (act) {
+      case 'fullscreenOn':
+      case 'fullscreenOff':
+        app.chooseFullscreen(act === 'fullscreenOn');
+        break;
       case 'play':
         this.show('team', { flow: 'match' });
         break;
