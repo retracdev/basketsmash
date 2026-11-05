@@ -6,6 +6,7 @@ import './styles.css';
 import * as THREE from 'three';
 import { Arena } from './world/arena.js';
 import { Particles } from './world/particles.js';
+import { ViewModel } from './entities/viewmodel.js';
 import { CameraRig } from './game/camera.js';
 import { Match } from './game/match.js';
 import { Arcade } from './game/arcade.js';
@@ -39,6 +40,9 @@ const INTRO_LOOK = [
 ];
 const INTRO_LEN = 9.5;
 
+const VIEWS = ['pov', 'third', 'court'];
+const VIEW_NAMES = { pov: 'FIRST PERSON', third: 'THIRD PERSON', court: 'COURT' };
+
 class App {
   async init() {
     await loadFonts();
@@ -60,6 +64,8 @@ class App {
     this.scene.background = new THREE.Color(0x07080f);
     this.scene.fog = new THREE.Fog(0x07080f, 45, 140);
     this.camera = new THREE.PerspectiveCamera(45, 1, 0.1, 300);
+    this.scene.add(this.camera); // the camera carries the first-person hands
+    this.viewmodel = new ViewModel(this.camera);
     this.arena = new Arena(this.renderer, q);
     this.scene.add(this.arena.group);
     this.particles = new Particles(q === 'low' ? 400 : 800);
@@ -76,7 +82,7 @@ class App {
     // First person: click the game to capture the mouse for looking around.
     const canvas = this.renderer.domElement;
     canvas.addEventListener('click', () => {
-      if (this.state === 'play' && this.rig.isPov) input.requestPointerLock(canvas);
+      if (this.state === 'play' && this.rig.usesLook) input.requestPointerLock(canvas);
     });
     document.addEventListener('pointerlockchange', () => {
       // Browsers release the mouse on Esc; treat that as a pause request.
@@ -126,19 +132,25 @@ class App {
   applyView(snap = false) {
     const w = this.world;
     if (!w || !w.user) return;
-    const pov = storage.settings.view !== 'court';
-    this.rig.setMode(pov ? 'pov' : w.courtView || 'broadcast', snap);
+    const view = VIEWS.includes(storage.settings.view) ? storage.settings.view : 'pov';
+    const pov = view === 'pov';
+    this.rig.setMode(pov ? 'pov' : view === 'third' ? 'third' : w.courtView || 'broadcast', snap);
     w.user.setFirstPerson(pov);
-    this.hud.setView(pov ? 'FIRST PERSON' : 'COURT', true);
-    if (!pov) this.unlockMouse();
+    this.viewmodel.setPlayer(w.user);
+    this.viewmodel.setVisible(pov);
+    this.hud.setView(VIEW_NAMES[view], true);
+    this.hud.setCrosshair(pov);
+    if (view === 'court') this.unlockMouse();
   }
 
+  // C / VIEW button cycles: first person -> third person -> court.
   toggleView() {
     if (!this.world || this.state === 'intro') return;
-    const next = storage.settings.view === 'court' ? 'pov' : 'court';
+    const cur = VIEWS.indexOf(storage.settings.view);
+    const next = VIEWS[(Math.max(0, cur) + 1) % VIEWS.length];
     storage.setSetting('view', next);
     this.applyView();
-    this.hud.toast(next === 'pov' ? 'FIRST PERSON VIEW' : 'COURT VIEW');
+    this.hud.toast(`${VIEW_NAMES[next]} VIEW`);
     audio.ui('tick');
   }
 
@@ -166,6 +178,8 @@ class App {
     }
     this.hud.show(false);
     this.hud.setView('', false);
+    this.hud.setCrosshair(false);
+    this.viewmodel.setVisible(false);
     this.hud.introCard(null);
     document.getElementById('skip-hint').classList.add('hidden');
   }
@@ -388,7 +402,16 @@ class App {
     this.particles.update(dt);
     const playing = this.state === 'play' && !!w;
     this.hud.updateMeter(playing ? w.meter : null, this.camera, window.innerWidth, window.innerHeight, this.rig.isPov);
-    this.hud.setLookHint(playing && this.rig.isPov && !input.pointerLocked && input.lastDevice !== 'gamepad');
+    this.hud.setLookHint(playing && this.rig.usesLook && !input.pointerLocked && input.lastDevice !== 'gamepad');
+    // First person: the held ball is drawn by the hands, not the hidden body.
+    if (w && w.user) {
+      const fp = this.rig.isPov && this.viewmodel.group.visible;
+      for (const b of w.balls) b.mesh.visible = !(fp && b.holder === w.user);
+      if (fp) {
+        this.camera.updateMatrixWorld();
+        this.viewmodel.update(this.state === 'play' ? dt : 0, w.user);
+      }
+    }
     this.renderer.render(this.scene, this.camera);
   }
 }

@@ -197,11 +197,10 @@ export class Player {
     };
   }
 
-  // First person: hide our own head and floor markers so they don't block the view.
+  // First person: hide our own body (the camera shows dedicated hands instead).
   setFirstPerson(on) {
-    this.parts.headG.visible = !on;
+    this.parts.root.visible = !on;
     if (this.ring) this.ring.visible = !on;
-    if (this.marker) this.marker.visible = !on;
   }
 
   setUserHighlight(color) {

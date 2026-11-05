@@ -33,17 +33,61 @@ export class CameraRig {
     return this.mode === 'pov';
   }
 
+  // First and third person both use mouse / stick look.
+  get usesLook() {
+    return this.mode === 'pov' || this.mode === 'third';
+  }
+
+  lookDir(minP = -1.1, maxP = 1.1, offset = 0) {
+    const p = clamp(this.pitch + offset, minP, maxP);
+    return new THREE.Vector3(Math.sin(this.yaw) * Math.cos(p), Math.sin(p), Math.cos(this.yaw) * Math.cos(p));
+  }
+
+  // Auto-look toward the action when the player isn't steering with mouse/stick.
+  steer(dt, ctx, eye, u) {
+    if (ctx.lookAt) {
+      const dx = ctx.lookAt.x - eye.x, dz = ctx.lookAt.z - eye.z;
+      const hd = Math.hypot(dx, dz);
+      const tYaw = Math.atan2(dx, dz);
+      const tPitch = clamp(Math.atan2(ctx.lookAt.y - eye.y, Math.max(hd, 0.5)), -0.4, 0.35);
+      if (!this.povReady) {
+        this.yaw = hd > 0.3 ? tYaw : u.facing;
+        this.pitch = tPitch;
+        this.povReady = true;
+      } else if (this.lookIdle > 1.4 && hd > 0.8) {
+        // Ease in so the view never snaps around.
+        const ease = clamp((this.lookIdle - 1.4) / 0.8, 0, 1);
+        const k = (1 - Math.exp(-(ctx.steerRate ?? 2.4) * dt)) * ease;
+        this.yaw = angleLerp(this.yaw, tYaw, k);
+        this.pitch += (tPitch - this.pitch) * k;
+      }
+    } else if (!this.povReady) {
+      this.yaw = u.facing;
+      this.pitch = -0.08;
+      this.povReady = true;
+    }
+    this.lookIdle += dt;
+  }
+
   shake(a) {
     this.shakeAmt = Math.max(this.shakeAmt, a);
   }
 
   setMode(mode, snap = false) {
-    if (mode === 'pov' && this.mode !== 'pov') {
+    const look = mode === 'pov' || mode === 'third';
+    if (look && !this.usesLook) {
       this.povReady = false;
       snap = true;
     }
+    if (mode === 'pov' || this.mode === 'pov') snap = true;
     this.mode = mode;
     this.snap = snap;
+    // Tight near plane so first-person hands never clip.
+    const near = mode === 'pov' ? 0.03 : 0.1;
+    if (this.camera.near !== near) {
+      this.camera.near = near;
+      this.camera.updateProjectionMatrix();
+    }
   }
 
   // Path flythrough: points are [x,y,z] arrays.
@@ -141,37 +185,33 @@ export class CameraRig {
         const u = ctx.user;
         if (!u) break;
         const eye = new THREE.Vector3(u.pos.x, u.y + u.height * 0.93, u.pos.z);
-        // Point the view at the action when the player isn't steering.
-        if (ctx.lookAt) {
-          const dx = ctx.lookAt.x - eye.x, dz = ctx.lookAt.z - eye.z;
-          const hd = Math.hypot(dx, dz);
-          const tYaw = Math.atan2(dx, dz);
-          const tPitch = clamp(Math.atan2(ctx.lookAt.y - eye.y, Math.max(hd, 0.5)), -0.45, 0.4);
-          if (!this.povReady) {
-            this.yaw = hd > 0.3 ? tYaw : u.facing;
-            this.pitch = tPitch;
-            this.povReady = true;
-          } else if (this.lookIdle > 1.1 && hd > 0.8) {
-            const k = 1 - Math.exp(-(ctx.steerRate ?? 2.4) * dt);
-            this.yaw = angleLerp(this.yaw, tYaw, k);
-            this.pitch += (tPitch - this.pitch) * k;
-          }
-        } else if (!this.povReady) {
-          this.yaw = u.facing;
-          this.pitch = -0.08;
-          this.povReady = true;
-        }
-        this.lookIdle += dt;
+        this.steer(dt, ctx, eye, u);
         // Gentle head bob while running.
         const spd = u.airborne ? 0 : u.speed;
         this.bob += dt * (4 + spd * 1.6);
-        eye.y += Math.sin(this.bob * 2) * Math.min(spd, 7) * 0.006;
-        const fwd = new THREE.Vector3(Math.sin(this.yaw) * Math.cos(this.pitch), Math.sin(this.pitch), Math.cos(this.yaw) * Math.cos(this.pitch));
-        eye.addScaledVector(new THREE.Vector3(fwd.x, 0, fwd.z).normalize(), 0.14);
+        eye.y += Math.sin(this.bob * 2) * Math.min(spd, 7) * 0.005;
+        const fwd = this.lookDir();
+        eye.addScaledVector(new THREE.Vector3(fwd.x, 0, fwd.z).normalize(), 0.1);
         tp.copy(eye);
         tl.copy(eye).add(fwd);
-        fov = 74;
+        fov = 72 + (u.intent.sprint && u.speed > 5.5 ? 6 : 0);
         rate = 1000;
+        break;
+      }
+      case 'third': {
+        // Over-the-shoulder chase cam that shares the first-person look controls.
+        const u = ctx.user;
+        if (!u) break;
+        const head = new THREE.Vector3(u.pos.x, u.y + u.height * 0.9, u.pos.z);
+        this.steer(dt, ctx, head, u);
+        const fwd = this.lookDir(-0.55, 0.45, -0.2);
+        const right = new THREE.Vector3(-Math.cos(this.yaw), 0, Math.sin(this.yaw));
+        const pivot = head.clone().addScaledVector(right, 0.55);
+        tp.copy(pivot).addScaledVector(fwd, -3.6);
+        tp.y = Math.max(0.6, tp.y + 0.35);
+        tl.copy(pivot).addScaledVector(fwd, 4);
+        fov = 62 + (u.intent.sprint && u.speed > 5.5 ? 5 : 0);
+        rate = 14;
         break;
       }
       case 'fixed': {
