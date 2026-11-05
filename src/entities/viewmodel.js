@@ -40,24 +40,34 @@ export class ViewModel {
   buildArm(side) {
     const root = new THREE.Group();
     // Forearm runs along +z (toward the elbow, behind the hand).
-    const fore = new THREE.Mesh(new THREE.CapsuleGeometry(0.042, 0.3, 3, 10).rotateX(Math.PI / 2).translate(0, 0, 0.22), this.skin);
+    const fore = new THREE.Mesh(new THREE.CylinderGeometry(0.09, 0.061, 0.38, 12).rotateX(Math.PI / 2).translate(0, 0, 0.23), this.skin);
     root.add(fore);
-    const band = new THREE.Mesh(new THREE.CylinderGeometry(0.05, 0.05, 0.06, 12).rotateX(Math.PI / 2).translate(0, 0, 0.1), this.band);
+    const wrist = new THREE.Mesh(new THREE.SphereGeometry(0.063, 12, 8), this.skin);
+    wrist.position.z = 0.045;
+    wrist.scale.set(1, 0.8, 1);
+    root.add(wrist);
+    const band = new THREE.Mesh(new THREE.CylinderGeometry(0.072, 0.069, 0.065, 12).rotateX(Math.PI / 2).translate(0, 0, 0.1), this.band);
     root.add(band);
     // Hand: palm plus fingers pointing forward (-z).
     const hand = new THREE.Group();
-    const palm = new THREE.Mesh(new THREE.SphereGeometry(0.05, 12, 8), this.skin);
-    palm.scale.set(1, 0.45, 1.15);
+    const palm = new THREE.Mesh(new THREE.SphereGeometry(1, 12, 8), this.skin);
+    palm.scale.set(0.082, 0.041, 0.085);
+    palm.position.z = -0.025;
     hand.add(palm);
-    const fingerGeo = new THREE.CapsuleGeometry(0.0115, 0.045, 2, 6).rotateX(Math.PI / 2);
+    // Short, rounded fingers overlap the palm so the hand has a solid silhouette.
+    const fingerGeo = new THREE.CapsuleGeometry(0.018, 0.032, 3, 8).rotateX(Math.PI / 2);
+    const lengths = [0.82, 1, 1.06, 0.9];
     for (let i = 0; i < 4; i++) {
       const f = new THREE.Mesh(fingerGeo, this.skin);
-      f.position.set((i - 1.5) * 0.022, 0.004, -0.075 + Math.abs(i - 1.5) * 0.008);
-      f.rotation.x = -0.12;
+      const length = lengths[side === 1 ? i : 3 - i];
+      f.scale.z = length;
+      f.position.set((i - 1.5) * 0.034, 0.002, -0.09 - 0.018 * length);
+      f.rotation.x = -0.18;
       hand.add(f);
     }
     const thumb = new THREE.Mesh(fingerGeo, this.skin);
-    thumb.position.set(-side * 0.048, -0.006, -0.03);
+    thumb.scale.set(1.1, 1.1, 0.85);
+    thumb.position.set(-side * 0.073, -0.014, -0.043);
     thumb.rotation.y = side * 0.7;
     hand.add(thumb);
     root.add(hand);

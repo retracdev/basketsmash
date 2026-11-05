@@ -122,6 +122,7 @@ class App {
     audio.setVolumes({ music: s.music, sfx: s.sfx, crowd: s.crowd });
     audio.announcer = s.announcer;
     this.hud.showHints = s.hints;
+    this.rig.autoLook = s.autoLook;
     if (key === 'announcer' && !s.announcer) audio.clearCommentary();
     if (key === 'view' && this.world && this.state !== 'intro') this.applyView();
     if (key === 'difficulty' && this.world) this.world.difficulty = s.difficulty;
@@ -402,7 +403,7 @@ class App {
     this.particles.update(dt);
     const playing = this.state === 'play' && !!w;
     this.hud.updateMeter(playing ? w.meter : null, this.camera, window.innerWidth, window.innerHeight, this.rig.isPov);
-    this.hud.setLookHint(playing && this.rig.usesLook && !input.pointerLocked && input.lastDevice !== 'gamepad');
+    this.hud.setLookHint(playing && this.rig.usesLook && !this.rig.autoLook && !input.pointerLocked && input.lastDevice !== 'gamepad');
     // First person: the held ball is drawn by the hands, not the hidden body.
     if (w && w.user) {
       const fp = this.rig.isPov && this.viewmodel.group.visible;

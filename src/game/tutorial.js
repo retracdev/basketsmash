@@ -16,7 +16,7 @@ const k = (key) => `<kbd>${key}</kbd>`;
 const STEPS = [
   {
     id: 'move', title: 'MOVE',
-    text: `Use ${k('W')}${k('A')}${k('S')}${k('D')} to move. In first person, click the game to look with the mouse (or turn with ${k('&larr;')}${k('&rarr;')}). Press ${k('C')} any time to switch to the court view. Walk into the glowing ring.`,
+    text: `Use ${k('W')}${k('A')}${k('S')}${k('D')} to move. Auto Camera follows the action by default (toggle it in Settings). You can also click to look with the mouse or turn with ${k('&larr;')}${k('&rarr;')}. Press ${k('C')} to cycle first person, third person, and court views. Walk into the glowing ring.`,
     setup: (w) => w.setTarget(HOOP_X - 6, 3),
     check: (w) => w.atTarget(),
   },

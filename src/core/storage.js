@@ -25,6 +25,7 @@ const DEFAULTS = {
     announcer: true,
     hints: true,
     view: 'pov',
+    autoLook: true,
     quality: 'medium',
     quarter: 3,
     difficulty: 1,

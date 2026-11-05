@@ -17,6 +17,7 @@ export class CameraRig {
     this.yaw = 0;
     this.pitch = 0;
     this.lookIdle = 9;
+    this.autoLook = true;
     this.povReady = false;
     this.bob = 0;
   }
@@ -54,9 +55,9 @@ export class CameraRig {
         this.yaw = hd > 0.3 ? tYaw : u.facing;
         this.pitch = tPitch;
         this.povReady = true;
-      } else if (this.lookIdle > 1.4 && hd > 0.8) {
+      } else if (this.autoLook && this.lookIdle > 0.65 && hd > 0.8) {
         // Ease in so the view never snaps around.
-        const ease = clamp((this.lookIdle - 1.4) / 0.8, 0, 1);
+        const ease = clamp((this.lookIdle - 0.65) / 0.65, 0, 1);
         const k = (1 - Math.exp(-(ctx.steerRate ?? 2.4) * dt)) * ease;
         this.yaw = angleLerp(this.yaw, tYaw, k);
         this.pitch += (tPitch - this.pitch) * k;

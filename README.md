@@ -30,8 +30,14 @@ and sound effects, so there are no third-party art or audio assets.
 | Shoot (hold, release at top) / Block / Rebound | Space | A |
 | Pass / Call for ball / Steal | E | X |
 | Crossover / Hold: auto-guard on defense | Q | B |
-| Camera (broadcast / player) | C | Y |
+| Camera (first person / third person / court) | C | Y |
 | Pause | Esc | Start |
+
+**Auto Camera** is on by default in first and third person: it follows the rim when you have the ball
+and the ball when you don't. Tutorial and arcade views follow the current target. You can play using
+just the keyboard on a trackpad. Mouse, arrow-key, and right-stick look temporarily override it;
+automatic tracking eases back in when you stop looking. Turn **Auto Camera OFF** in Settings for
+full manual look. The setting is saved locally and applies immediately.
 
 ## Development
 
