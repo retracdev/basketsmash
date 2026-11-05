@@ -292,43 +292,27 @@ export function jerseyTextures(team, player) {
 }
 
 // -------------------------------------------------------------- ad ribbon
-const SPONSORS = [
-  ['RIMSHOT ENERGY', '#ff3b30', '#111'],
-  ['SKYHOOK AIRWAYS', '#0a84ff', '#fff'],
-  ['BOUNCE BANK', '#30d158', '#062'],
-  ['ZOOM COLA', '#ffd60a', '#111'],
-  ['RETRAC', '#151320', 'logo'],
-  ['BASKETSMASH', '#ff7a1a', '#111'],
-  ['NETWORX MOBILE', '#bf5af2', '#fff'],
-  ['RETRAC', '#151320', 'logo'],
-  ['FASTBREAK PIZZA', '#ff9f0a', '#300'],
-];
-
-export function ribbonTexture(rows = 1) {
-  const W = 2048, H = 128 * rows;
+// LED ribbon: the retrac.space wordmark repeated, nothing else.
+export function ribbonTexture(maxAniso = 1) {
+  const W = 2048, H = 128;
   const c = makeCanvas(W, H);
   const g = c.getContext('2d');
-  g.fillStyle = '#05060a';
+  const bg = g.createLinearGradient(0, 0, 0, H);
+  bg.addColorStop(0, '#1b1830');
+  bg.addColorStop(1, '#0d0b1a');
+  g.fillStyle = bg;
   g.fillRect(0, 0, W, H);
-  const bw = W / SPONSORS.length;
-  g.textAlign = 'center';
-  g.textBaseline = 'middle';
-  for (let r = 0; r < rows; r++) {
-    for (let i = 0; i < SPONSORS.length; i++) {
-      const [name, bg, fg] = SPONSORS[(i + r * 3) % SPONSORS.length];
-      g.fillStyle = bg;
-      g.fillRect(i * bw + 4, r * 128 + 10, bw - 8, 108);
-      if (fg === 'logo') {
-        drawRetracLogo(g, i * bw + bw / 2, r * 128 + 64, 50);
-        g.textAlign = 'center';
-        continue;
-      }
-      g.fillStyle = fg;
-      g.font = `64px ${BODY_FONT}`;
-      g.fillText(name, i * bw + bw / 2, r * 128 + 70, bw - 24);
-    }
+  const n = 4;
+  const bw = W / n;
+  for (let i = 0; i < n; i++) {
+    drawRetracLogo(g, i * bw + bw / 2, H / 2 + 2, 58);
+    // thin divider between logos
+    g.fillStyle = 'rgba(140,137,166,0.35)';
+    g.fillRect(i * bw, 30, 3, H - 60);
   }
-  return toTexture(c, { repeat: true });
+  const t = toTexture(c, { repeat: true });
+  t.anisotropy = maxAniso;
+  return t;
 }
 
 // --------------------------------------------------------------- backboard

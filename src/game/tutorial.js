@@ -16,7 +16,7 @@ const k = (key) => `<kbd>${key}</kbd>`;
 const STEPS = [
   {
     id: 'move', title: 'MOVE',
-    text: `Use ${k('W')}${k('A')}${k('S')}${k('D')} or the ${k('ARROW KEYS')} to move. Walk into the glowing ring.`,
+    text: `Use ${k('W')}${k('A')}${k('S')}${k('D')} to move. In first person, click the game to look with the mouse (or turn with ${k('&larr;')}${k('&rarr;')}). Press ${k('C')} any time to switch to the court view. Walk into the glowing ring.`,
     setup: (w) => w.setTarget(HOOP_X - 6, 3),
     check: (w) => w.atTarget(),
   },
@@ -64,13 +64,13 @@ const STEPS = [
   },
   {
     id: 'pass', title: 'PASSING',
-    text: `Press ${k('E')} to pass. Hold a direction toward a teammate to choose who gets it. Pass to Coach Mika twice. In games, press ${k('E')} without the ball to call for it.`,
+    text: `Look toward a teammate and press ${k('E')} (or right click) to pass. Pass to Coach Mika twice. In games, press ${k('E')} without the ball to call for it, and teammates will feed you when you're open.`,
     setup: (w) => { w.spawnMate(); w.feedBall({ direct: true }); w.feeding = true; },
     check: (w) => w.flags.passes >= 2,
   },
   {
     id: 'steal', title: 'STEALS',
-    text: `On defense, get close and face the ball handler, then press ${k('E')} to poke the ball away. Steal it!`,
+    text: `On defense, get close to the ball handler and press ${k('E')} to swipe at the ball. Press ${k('E')} near a pass to jump the passing lane. Steal it!`,
     setup: (w) => w.spawnDummy('dribble'),
     check: (w) => w.flags.stolen,
   },
@@ -101,7 +101,7 @@ export class Tutorial extends FeedWorld {
     this.doneT = -1;
     this.feeding = false;
     this.onFinished = null;
-    app.rig.setMode('arcade', true);
+    this.courtView = 'arcade';
     this.next();
   }
 
@@ -187,7 +187,6 @@ export class Tutorial extends FeedWorld {
     }
     if (this.user.intent.sprint && this.user.speed > 5.2) this.flags.sprinted = true;
     super.update(dt);
-    this.app.rig.mode = 'arcade';
     this.updateHelpers(dt);
 
     if (step && !step.final) {
@@ -259,6 +258,11 @@ export class Tutorial extends FeedWorld {
     return 0.6;
   }
 
+  // Only the steal drill lets you grab the ball off someone else.
+  canPickup(p) {
+    return p.isUser && this.dummyKind === 'dribble' && !!this.dummy;
+  }
+
   stealBias(d) {
     return d.isUser ? 2.6 : 1;
   }
@@ -308,6 +312,14 @@ export class Tutorial extends FeedWorld {
   }
 
   cameraContext() {
-    return { user: this.user, side: 1, offense: true, focus: this.user.pos };
+    const u = this.user;
+    let lookAt = new THREE.Vector3(HOOP_X, 2.8, 0);
+    if (this.ringMark.visible && this.target && !this.dummy) lookAt = this.target.clone().setY(0.5);
+    else if (this.dummy) lookAt = this.dummy.pos.clone().setY(1.4);
+    else if (this.mate && u.hasBall) lookAt = this.mate.pos.clone().setY(1.4);
+    const incoming = this.balls.find((b) => b.state === 'pass' && b.pass && b.pass.to === u);
+    if (incoming) lookAt = incoming.pos.clone();
+    return { user: u, side: 1, offense: true, focus: u.pos, lookAt, steerRate: 2.4 };
   }
+
 }

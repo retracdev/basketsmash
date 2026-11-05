@@ -116,10 +116,23 @@ export class PlayWorld {
   }
 
   // ------------------------------------------------------- user input
-  userControl() {
+  // First-person look: mouse (pointer lock), right stick or left/right arrows.
+  povLook(dt) {
+    const rig = this.app.rig;
+    const m = input.takeMouse();
+    if (!rig.isPov) return;
+    rig.addLook(-m.dx * 0.0024, -m.dy * 0.0024);
+    rig.addLook(-input.turn * 2.4 * dt, input.lookY * 1.4 * dt);
+  }
+
+  userControl(dt = 1 / 60) {
     const u = this.user;
-    const { fwd, right } = this.app.rig.basis();
-    const ax = input.axis.x, ay = input.axis.y;
+    const rig = this.app.rig;
+    this.povLook(dt);
+    const pov = rig.isPov;
+    const { fwd, right } = rig.basis();
+    const axis = pov ? input.povAxis : input.axis;
+    const ax = axis.x, ay = axis.y;
     let mx = right.x * ax + fwd.x * ay;
     let mz = right.z * ax + fwd.z * ay;
     const defending = this.isDefending(u);
@@ -140,12 +153,13 @@ export class PlayWorld {
     u.intent.x = mx;
     u.intent.z = mz;
     u.intent.sprint = input.held('sprint');
-    const lt = this.userLookTarget(u);
-    u.lookTarget = lt;
+    u.lookTarget = this.userLookTarget(u);
+    // In first person the body turns with the view.
+    u.faceYaw = pov ? rig.yaw : null;
 
     if (u.hasBall) {
       if (input.pressed('shoot')) this.beginShot(u);
-      if (input.pressed('pass') && !u.locked()) this.userPass(u, mx, mz);
+      if (input.pressed('pass') && !u.locked()) this.userPass(u, mx, mz, pov ? fwd : null);
       if (input.pressed('move') && !u.locked()) this.crossover(u);
     } else {
       if (input.pressed('shoot') && !u.airborne && !u.locked()) {
@@ -155,7 +169,7 @@ export class PlayWorld {
       if (input.pressed('pass')) {
         const h = this.holderOf();
         if (h && h.team === u.team) this.callForBall(u, h);
-        else if (!u.locked()) this.trySteal(u);
+        else if (!this.userIntercept(u) && !u.locked()) this.trySteal(u);
       }
     }
     if (u.action && u.action.type === 'jumper' && !u.action.released && !input.held('shoot')) {
@@ -163,10 +177,13 @@ export class PlayWorld {
     }
   }
 
-  userPass(u, mx, mz) {
+  // Pass to the teammate closest to where you're aiming (look direction in first person,
+  // otherwise the movement direction). Falls back to the most open teammate.
+  userPass(u, mx, mz, lookDir = null) {
     const mates = this.teammates(u).filter((m) => !m.dummy || m.passTarget);
     if (!mates.length) return;
-    let dir = new THREE.Vector2(mx, mz);
+    const dir = new THREE.Vector2(mx, mz);
+    if (lookDir && dir.lengthSq() < 0.01) dir.set(lookDir.x, lookDir.z);
     if (dir.lengthSq() < 0.01) dir.set(Math.sin(u.facing), Math.cos(u.facing));
     dir.normalize();
     let best = null, bestS = -Infinity;
@@ -176,7 +193,35 @@ export class PlayWorld {
       const s = (dx * dir.x + dz * dir.y) / d - d * 0.015;
       if (s > bestS) { bestS = s; best = m; }
     }
+    if (bestS < 0.2 && mates.length > 1) {
+      // Nobody in that direction: hit the most open man instead.
+      const opp = this.opponents(u);
+      const openness = (m) => (opp.length ? Math.min(...opp.map((o) => o.pos.distanceTo(m.pos))) : 9);
+      best = mates.slice().sort((a, b) => openness(b) - openness(a))[0];
+    }
     if (best) this.pass(u, best);
+  }
+
+  // Pressing E near a pass in flight jumps the passing lane.
+  userIntercept(u) {
+    for (const b of this.balls) {
+      if (b.state !== 'pass' || !b.pass || b.pass.from.team === u.team) continue;
+      const hd = Math.hypot(b.pos.x - u.pos.x, b.pos.z - u.pos.z);
+      if (hd < 2.6 && b.pos.y < u.reach + 0.7) {
+        if (chance(0.55 + 0.3 * u.s.def) && this.canPickup(u, b)) {
+          const from = b.pass.from;
+          this.pickup(u, b, 'steal');
+          u.stats.stl++;
+          audio.steal();
+          this.onSteal(u, from, true);
+        } else {
+          u.setAction('steal', { dur: 0.28, hand: 'r' });
+          u.cd.steal = 0.5;
+        }
+        return true;
+      }
+    }
+    return false;
   }
 
   // ------------------------------------------------------------ actions
@@ -453,23 +498,45 @@ export class PlayWorld {
 
   trySteal(d) {
     if (d.cd.steal > 0) return false;
-    d.cd.steal = 1.0;
+    // The user gets a quicker, longer, more forgiving swipe than the AI.
+    d.cd.steal = d.isUser ? 0.55 : 1.0;
     d.setAction('steal', { dur: 0.28, hand: Math.random() < 0.5 ? 'r' : 'l' });
     audio.whoosh();
     const h = this.holderOf();
     if (!h || h.team === d.team) return false;
     const dx = h.pos.x - d.pos.x, dz = h.pos.z - d.pos.z;
     const dist = Math.hypot(dx, dz);
-    if (dist > 1.45) return false;
-    const fwd = d.forward;
-    if ((dx * fwd.x + dz * fwd.z) / (dist || 1) < 0.1) return false;
+    if (dist > (d.isUser ? 2.1 : 1.45)) {
+      if (d.isUser) this.app.hud.toast('GET CLOSER TO STEAL');
+      return false;
+    }
+    if (!d.isUser) {
+      const fwd = d.forward;
+      if ((dx * fwd.x + dz * fwd.z) / (dist || 1) < 0.1) return false;
+    } else {
+      // lunge at the ball
+      d.faceToward(h.pos, 1);
+      d.vel.x += (dx / (dist || 1)) * 3;
+      d.vel.z += (dz / (dist || 1)) * 3;
+    }
     if (h.action && (h.action.type === 'dunk' || h.action.type === 'layup' || h.action.type === 'jumper')) return false;
-    let pc = 0.1 + 0.3 * d.s.def - 0.2 * h.s.pas;
+    let pc = d.isUser ? 0.3 + 0.3 * d.s.def - 0.15 * h.s.pas : 0.1 + 0.3 * d.s.def - 0.2 * h.s.pas;
     if (h.action && h.action.type === 'crossover') pc += 0.12;
     if (h.holding) pc -= 0.06;
     pc *= d.isUser ? 1 + DIFF.userLayup[this.difficulty] * 3 : this.aiStealMult();
     pc *= this.stealBias(d);
-    if (chance(clamp(pc, 0.03, 0.7))) {
+    if (d.isUser && chance(clamp(pc, 0.1, 0.85)) && this.canPickup(d, h.ball)) {
+      // Clean pickpocket straight into your hands.
+      const b = h.ball;
+      b.release();
+      h.cd.pickup = 0.6;
+      this.pickup(d, b, 'steal');
+      d.stats.stl++;
+      audio.steal();
+      this.onSteal(d, h);
+      return true;
+    }
+    if (!d.isUser && chance(clamp(pc, 0.03, 0.7))) {
       const b = h.ball;
       b.release();
       b.state = 'loose';
@@ -486,7 +553,7 @@ export class PlayWorld {
       this.onSteal(d, h);
       return true;
     }
-    if (chance(0.22)) {
+    if (!d.isUser && chance(0.22)) {
       // Over-reached: the ball handler gets a step.
       d.setAction('stumble', { dur: 0.4 });
     }
@@ -494,10 +561,10 @@ export class PlayWorld {
   }
 
   callForBall(u, holder) {
-    if (holder.isUser || holder.cd.pass > 0) return;
+    if (holder.isUser) return;
     this.app.hud.toast('BALL!', 'call');
     holder.calledBy = u;
-    holder.callT = 0.6;
+    holder.callT = 1.5;
   }
 
   pass(from, to, opts = {}) {
@@ -648,6 +715,10 @@ export class PlayWorld {
         p.airborne = false;
         p.holding = true;
       }
+    }
+    if (p.isUser && info.from && info.from.team === p.team && !info.from.isMachine && !info.from.isUser) {
+      this.app.hud.notice('YOU HAVE THE BALL!');
+      audio.yourBall();
     }
     this.onCatch(p, info.from);
   }

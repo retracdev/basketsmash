@@ -197,6 +197,13 @@ export class Player {
     };
   }
 
+  // First person: hide our own head and floor markers so they don't block the view.
+  setFirstPerson(on) {
+    this.parts.headG.visible = !on;
+    if (this.ring) this.ring.visible = !on;
+    if (this.marker) this.marker.visible = !on;
+  }
+
   setUserHighlight(color) {
     if (this.ring) this.ring.material.color.setHex(color);
     if (this.marker) this.marker.material.color.setHex(color);
@@ -313,7 +320,9 @@ export class Player {
 
     // Facing
     if (!this.locked() || (this.action && this.action.type === 'stumble')) {
-      if (this.lookTarget && (this.stance || this.speed < 1.2 || this.holding)) {
+      if (this.faceYaw != null) {
+        this.facing = angleLerp(this.facing, this.faceYaw, 1 - Math.exp(-20 * dt));
+      } else if (this.lookTarget && (this.stance || this.speed < 1.2 || this.holding)) {
         this.faceToward(this.lookTarget, 1 - Math.exp(-12 * dt));
       } else if (this.speed > 0.6) {
         this.facing = angleLerp(this.facing, Math.atan2(this.vel.x, this.vel.z), 1 - Math.exp(-14 * dt));

@@ -71,6 +71,19 @@ class App {
     this.state = 'title';
     this.applySettings();
     this.arena.setSpotlights(true, [0xff7a1a, 0x4aa3ff]);
+    audio.onCaption = (text) => this.hud.caption(text);
+
+    // First person: click the game to capture the mouse for looking around.
+    const canvas = this.renderer.domElement;
+    canvas.addEventListener('click', () => {
+      if (this.state === 'play' && this.rig.isPov) input.requestPointerLock(canvas);
+    });
+    document.addEventListener('pointerlockchange', () => {
+      // Browsers release the mouse on Esc; treat that as a pause request.
+      if (!document.pointerLockElement && this.state === 'play' && !this.intentUnlock) this.pause();
+      this.intentUnlock = false;
+    });
+    document.getElementById('view-btn').addEventListener('click', () => this.toggleView());
 
     this.resize();
     window.addEventListener('resize', () => this.resize());
@@ -103,11 +116,37 @@ class App {
     audio.setVolumes({ music: s.music, sfx: s.sfx, crowd: s.crowd });
     audio.announcer = s.announcer;
     this.hud.showHints = s.hints;
-    if (key === 'announcer' && !s.announcer) audio.stopSpeech();
-    if (key === 'camera' && this.world instanceof Match && this.state !== 'intro') {
-      this.rig.setMode(s.camera === 'player' ? 'player' : 'broadcast');
-    }
+    if (key === 'announcer' && !s.announcer) audio.clearCommentary();
+    if (key === 'view' && this.world && this.state !== 'intro') this.applyView();
     if (key === 'difficulty' && this.world) this.world.difficulty = s.difficulty;
+  }
+
+  // ------------------------------------------------------------- view
+  // First person (default) or the mode's court camera (broadcast / behind the shooter).
+  applyView(snap = false) {
+    const w = this.world;
+    if (!w || !w.user) return;
+    const pov = storage.settings.view !== 'court';
+    this.rig.setMode(pov ? 'pov' : w.courtView || 'broadcast', snap);
+    w.user.setFirstPerson(pov);
+    this.hud.setView(pov ? 'FIRST PERSON' : 'COURT', true);
+    if (!pov) this.unlockMouse();
+  }
+
+  toggleView() {
+    if (!this.world || this.state === 'intro') return;
+    const next = storage.settings.view === 'court' ? 'pov' : 'court';
+    storage.setSetting('view', next);
+    this.applyView();
+    this.hud.toast(next === 'pov' ? 'FIRST PERSON VIEW' : 'COURT VIEW');
+    audio.ui('tick');
+  }
+
+  unlockMouse() {
+    if (document.pointerLockElement) {
+      this.intentUnlock = true;
+      input.releasePointerLock();
+    }
   }
 
   // ------------------------------------------------------------- flow
@@ -126,6 +165,7 @@ class App {
       this.world = null;
     }
     this.hud.show(false);
+    this.hud.setView('', false);
     this.hud.introCard(null);
     document.getElementById('skip-hint').classList.add('hidden');
   }
@@ -171,11 +211,11 @@ class App {
     };
     cue('welcome', 0.2, () => {
       this.hud.introCard('<span class="rs-logo"><span class="a">retrac</span><span class="b">.space</span></span> ARENA', 'WELCOME TO', true);
-      audio.announce('Welcome to the retrac dot space Arena!', { force: true });
+      audio.commentary('Welcome to the retrac.space Arena!', { force: true });
     });
     cue('teams', 3.4, () => {
       this.hud.introCard(`${home.abbr}  VS  ${away.abbr}`, `${home.city.toUpperCase()} ${home.name.toUpperCase()} vs ${away.city.toUpperCase()} ${away.name.toUpperCase()}`);
-      audio.announce(`Tonight, the ${away.city} ${away.name} take on your ${home.city} ${home.name}!`);
+      audio.commentary(`Tonight, the ${away.city} ${away.name} take on your ${home.city} ${home.name}!`);
       this.arena.cheer(0.7);
     });
     cue('pyro', 6.0, () => {
@@ -206,11 +246,12 @@ class App {
     audio.setCrowd(1);
     this.hud.mode('match');
     m.userEnabled = true;
-    this.rig.setMode(storage.settings.camera === 'player' ? 'player' : 'broadcast');
     m.startTipoff();
+    this.applyView(true);
   }
 
   finishMatch(res) {
+    this.unlockMouse();
     storage.recordGame({ won: res.won, points: res.user ? res.user.pts : 0 });
     this.state = 'results';
     this.hud.show(false);
@@ -233,18 +274,20 @@ class App {
     this.arena.setSpotlights(false);
     this.arena.jumboDraw({ message: a.def.title, sub: `#${cfg.player.num} ${cfg.player.name.toUpperCase()}` });
     a.onFinished = (res) => {
+      this.unlockMouse();
       const record = res.mode !== 'practice' && storage.submitRecord(res.mode, res.score);
       this.state = 'results';
       this.hud.show(false);
       if (record) {
         audio.cheer(1.5, 3);
-        audio.announce('A new record!', { force: true });
+        audio.commentary('A new record!', { force: true });
       }
       this.menus.show('arcadeResults', { ...res, record });
     };
     this.hud.show(true);
     this.hud.mode('arcade');
     this.state = 'play';
+    this.applyView(true);
     audio.playMusic('game', 0.4);
     audio.setCrowd(0.7);
   }
@@ -262,21 +305,23 @@ class App {
     this.arena.jumboDraw({ message: 'TUTORIAL', sub: 'BASKETSMASH ACADEMY' });
     t.onFinished = () => {
       storage.markTutorialDone();
-      audio.announce("You're ready. Let's play!", { force: true });
+      audio.commentary("You're ready. Let's play!", { force: true });
       this.quitToMenu();
     };
     this.hud.show(true);
     this.hud.mode('tutorial');
     this.state = 'play';
+    this.applyView(true);
     audio.playMusic('game', 0.35);
     audio.setCrowd(0.4);
   }
 
   pause() {
     if (this.state !== 'play') return;
+    this.unlockMouse();
     this.state = 'paused';
     audio.setMusicLevel(0.15);
-    audio.stopSpeech();
+    audio.clearCommentary();
     this.menus.show('pause');
   }
 
@@ -288,10 +333,11 @@ class App {
   }
 
   quitToMenu(showMain = true) {
+    this.unlockMouse();
     this.clearWorld();
     this.state = 'menu';
     this.rig.setMode('menu');
-    audio.stopSpeech();
+    audio.clearCommentary();
     if (audio.trackName !== 'menu' || !audio.track) audio.playMusic('menu');
     audio.setCrowd(0.5);
     this.arena.setSpotlights(true, [0xff7a1a, 0x4aa3ff]);
@@ -319,7 +365,7 @@ class App {
         this.introTimeline(dt);
         if (w) w.update(dt);
         if (this.introT > 0.7 && input.anyPressed) {
-          audio.stopSpeech();
+          audio.clearCommentary();
           this.rig.skipIntro();
         }
         break;
@@ -328,12 +374,7 @@ class App {
           this.pause();
           break;
         }
-        if (input.pressed('camera') && w instanceof Match) {
-          const next = storage.settings.camera === 'player' ? 'broadcast' : 'player';
-          storage.setSetting('camera', next);
-          this.rig.setMode(next);
-          this.hud.toast(next === 'player' ? 'PLAYER CAM' : 'BROADCAST CAM');
-        }
+        if (input.pressed('camera')) this.toggleView();
         if (w) w.update(dt * w.timeScale);
         break;
       case 'paused':
@@ -345,7 +386,9 @@ class App {
     this.rig.update(dt, ctx);
     this.arena.update(dt);
     this.particles.update(dt);
-    this.hud.updateMeter(this.state === 'play' && w ? w.meter : null, this.camera, window.innerWidth, window.innerHeight);
+    const playing = this.state === 'play' && !!w;
+    this.hud.updateMeter(playing ? w.meter : null, this.camera, window.innerWidth, window.innerHeight, this.rig.isPov);
+    this.hud.setLookHint(playing && this.rig.isPov && !input.pointerLocked && input.lastDevice !== 'gamepad');
     this.renderer.render(this.scene, this.camera);
   }
 }

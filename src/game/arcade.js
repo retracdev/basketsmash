@@ -160,7 +160,7 @@ export class Arcade extends FeedWorld {
       u.placeAt(HOOP_X - 5.5, 1, new THREE.Vector3(HOOP_X, 0, 0));
     }
     this.feeding = false;
-    app.rig.setMode('arcade', true);
+    this.courtView = 'arcade';
     this.app.hud.popup(this.def.title, 'big');
   }
 
@@ -209,6 +209,8 @@ export class Arcade extends FeedWorld {
     if (this.ended) return;
     if (this.stationary) {
       const u = this.user;
+      this.povLook(dt);
+      u.faceYaw = null;
       if (this.moveTarget) return;
       u.intent.x = u.intent.z = 0;
       u.intent.sprint = false;
@@ -277,7 +279,6 @@ export class Arcade extends FeedWorld {
     }
 
     super.update(dt);
-    this.app.rig.mode = 'arcade';
 
     // Shootout: rack finished -> next station once the last ball is away.
     if (this.mode === 'shootout' && !this.ended && this.rackLeft === 0 && !this.userHasBall() && !this.user.locked() && !this.moveTarget) {
@@ -378,7 +379,7 @@ export class Arcade extends FeedWorld {
     this.app.hud.popup(label, 'good');
     audio.cheer(this.streak >= 3 ? 1 : 0.6, 1.4);
     this.app.arena.cheer(this.streak >= 3 ? 0.7 : 0.3);
-    if (shot.perfect && shot.kind === 'jumper' && chance(0.5)) audio.announce(pick(['Splash!', 'Wet!', 'Cash!']));
+    if (shot.perfect && shot.kind === 'jumper' && chance(0.5)) audio.commentary(pick(['Splash!', 'Wet!', 'Cash!']));
   }
 
   onMiss(b, shot) {
@@ -416,6 +417,9 @@ export class Arcade extends FeedWorld {
   }
 
   cameraContext() {
-    return { user: this.user, side: 1, offense: true, focus: this.user.pos };
+    const incoming = this.balls.find((b) => b.state === 'pass' && b.pass && b.pass.to === this.user);
+    const lookAt = incoming ? incoming.pos.clone() : new THREE.Vector3(HOOP_X, 2.8, 0);
+    return { user: this.user, side: 1, offense: true, focus: this.user.pos, lookAt, steerRate: this.stationary ? 4 : 2.4 };
   }
+
 }
