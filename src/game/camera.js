@@ -17,7 +17,8 @@ export class CameraRig {
     this.yaw = 0;
     this.pitch = 0;
     this.lookIdle = 9;
-    this.autoLook = true;
+    this.pitchIdle = 9;
+    this.autoLook = 'max';
     this.povReady = false;
     this.bob = 0;
   }
@@ -28,6 +29,7 @@ export class CameraRig {
     this.yaw += dYaw;
     this.pitch = clamp(this.pitch + dPitch, -1.1, 1.1);
     this.lookIdle = 0;
+    if (Math.abs(dPitch) >= 1e-5) this.pitchIdle = 0;
   }
 
   get isPov() {
@@ -46,21 +48,32 @@ export class CameraRig {
 
   // Auto-look toward the action when the player isn't steering with mouse/stick.
   steer(dt, ctx, eye, u) {
+    const max = this.autoLook === 'max';
     if (ctx.lookAt) {
       const dx = ctx.lookAt.x - eye.x, dz = ctx.lookAt.z - eye.z;
       const hd = Math.hypot(dx, dz);
       const tYaw = Math.atan2(dx, dz);
-      const tPitch = clamp(Math.atan2(ctx.lookAt.y - eye.y, Math.max(hd, 0.5)), -0.4, 0.35);
+      const tPitch = max
+        ? clamp(Math.atan2(ctx.lookAt.y - eye.y, Math.max(hd, 0.001)), -1.1, 1.1)
+        : clamp(Math.atan2(ctx.lookAt.y - eye.y, Math.max(hd, 0.5)), -0.4, 0.35);
       if (!this.povReady) {
         this.yaw = hd > 0.3 ? tYaw : u.facing;
         this.pitch = tPitch;
         this.povReady = true;
-      } else if (this.autoLook && this.lookIdle > 0.65 && hd > 0.8) {
-        // Ease in so the view never snaps around.
-        const ease = clamp((this.lookIdle - 0.65) / 0.65, 0, 1);
-        const k = (1 - Math.exp(-(ctx.steerRate ?? 2.4) * dt)) * ease;
-        this.yaw = angleLerp(this.yaw, tYaw, k);
-        this.pitch += (tPitch - this.pitch) * k;
+      } else if (this.autoLook !== 'off') {
+        if (this.lookIdle > 0.65 && hd > 0.8) {
+          // Ease in so the view never snaps around.
+          const ease = clamp((this.lookIdle - 0.65) / 0.65, 0, 1);
+          const k = (1 - Math.exp(-(ctx.steerRate ?? 2.4) * dt)) * ease;
+          this.yaw = angleLerp(this.yaw, tYaw, k);
+          if (!max) this.pitch += (tPitch - this.pitch) * k;
+        }
+        // MAX tracks height even right under the rim or while using arrows to turn.
+        // Only manual vertical input suspends this assistance.
+        if (max && this.pitchIdle > 0.3) {
+          const ease = clamp((this.pitchIdle - 0.3) / 0.35, 0, 1);
+          this.pitch += (tPitch - this.pitch) * (1 - Math.exp(-3.5 * dt)) * ease;
+        }
       }
     } else if (!this.povReady) {
       this.yaw = u.facing;
@@ -68,6 +81,7 @@ export class CameraRig {
       this.povReady = true;
     }
     this.lookIdle += dt;
+    this.pitchIdle += dt;
   }
 
   shake(a) {
@@ -205,7 +219,7 @@ export class CameraRig {
         if (!u) break;
         const head = new THREE.Vector3(u.pos.x, u.y + u.height * 0.9, u.pos.z);
         this.steer(dt, ctx, head, u);
-        const fwd = this.lookDir(-0.55, 0.45, -0.2);
+        const fwd = this.autoLook === 'max' ? this.lookDir() : this.lookDir(-0.55, 0.45, -0.2);
         const right = new THREE.Vector3(-Math.cos(this.yaw), 0, Math.sin(this.yaw));
         const pivot = head.clone().addScaledVector(right, 0.55);
         tp.copy(pivot).addScaledVector(fwd, -3.6);

@@ -241,11 +241,11 @@ export class Menus {
         <label>COMMENTARY</label>${seg('announcer', [[true, 'ON'], [false, 'OFF']], s.announcer)}
         <label>CONTROL HINTS</label>${seg('hints', [[true, 'ON'], [false, 'OFF']], s.hints)}
         <label>VIEW</label>${seg('view', [['pov', '1ST PERSON'], ['third', '3RD PERSON'], ['court', 'COURT']], s.view)}
-        <label>AUTO CAMERA</label>${seg('autoLook', [[true, 'ON'], [false, 'OFF']], s.autoLook)}
+        <label>AUTO CAMERA</label>${seg('autoLook', [['max', 'MAX'], ['on', 'ON'], ['off', 'OFF']], s.autoLook)}
         <label>GRAPHICS</label>${seg('quality', [['low', 'LOW'], ['medium', 'MEDIUM'], ['high', 'HIGH']], s.quality)}
         <label>DIFFICULTY</label>${seg('difficulty', DIFF.names.map((n, i) => [i, n]), s.difficulty)}
       </div>
-      <div class="note">Auto Camera follows the rim or ball in 1st/3rd person, so you can play on a trackpad using just the keyboard. Manual look overrides it briefly. Turn it OFF for full manual look.<br>Graphics changes apply after reload. Use LOW on older computers.</div>
+      <div class="note">Auto Camera: MAX (default) turns and looks up/down to follow the rim or ball for trackpad play. ON uses gentle tracking with limited vertical movement. OFF gives full manual look. Manual look overrides assistance briefly.<br>Graphics changes apply after reload. Use LOW on older computers.</div>
       <div class="btn-row">${btn('back', 'DONE', { cls: 'small center' })}</div>
     </div>`;
   }
@@ -273,7 +273,7 @@ export class Menus {
           <h4 style="margin-top:16px">OTHER</h4>
           <div class="ctrl">
             <div><kbd>C</kbd></div><div>Switch view: first person / third person / court (any time)</div>
-            <div>AUTO CAMERA</div><div>On by default: follows the rim or ball. Toggle in Settings for manual look.</div>
+            <div>AUTO CAMERA</div><div>MAX by default: turns and looks up/down for you. Settings: MAX / ON / OFF.</div>
             <div>MOUSE</div><div>1st/3rd person: click to look · left click shoot · right click pass</div>
             <div><kbd>&larr;</kbd><kbd>&rarr;</kbd></div><div>1st/3rd person: turn without a mouse</div>
             <div><kbd>ESC</kbd></div><div>Pause</div>

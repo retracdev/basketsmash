@@ -25,7 +25,7 @@ const DEFAULTS = {
     announcer: true,
     hints: true,
     view: 'pov',
-    autoLook: true,
+    autoLook: 'max',
     quality: 'medium',
     quarter: 3,
     difficulty: 1,
@@ -51,10 +51,14 @@ function load() {
     const raw = readCookie();
     if (!raw) return structuredClone(DEFAULTS);
     const parsed = JSON.parse(raw);
+    const settings = { ...DEFAULTS.settings, ...(parsed.settings || {}) };
+    // Upgrade the old enabled setting to MAX, while respecting an explicit opt-out.
+    if (settings.autoLook === false) settings.autoLook = 'off';
+    else if (!['max', 'on', 'off'].includes(settings.autoLook)) settings.autoLook = 'max';
     return {
       ...structuredClone(DEFAULTS),
       ...parsed,
-      settings: { ...DEFAULTS.settings, ...(parsed.settings || {}) },
+      settings,
       records: { ...DEFAULTS.records, ...(parsed.records || {}) },
       career: { ...DEFAULTS.career, ...(parsed.career || {}) },
     };
