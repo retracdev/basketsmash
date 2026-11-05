@@ -1,0 +1,353 @@
+import '@fontsource/bungee';
+import '@fontsource/teko/400.css';
+import '@fontsource/teko/600.css';
+import '@fontsource/space-grotesk/700.css';
+import './styles.css';
+import * as THREE from 'three';
+import { Arena } from './world/arena.js';
+import { Particles } from './world/particles.js';
+import { CameraRig } from './game/camera.js';
+import { Match } from './game/match.js';
+import { Arcade } from './game/arcade.js';
+import { Tutorial } from './game/tutorial.js';
+import { Hud } from './ui/hud.js';
+import { Menus } from './ui/menus.js';
+import { input } from './core/input.js';
+import { audio } from './core/audio.js';
+import { storage } from './core/storage.js';
+
+async function loadFonts() {
+  if (!document.fonts) return;
+  const wait = Promise.all([
+    document.fonts.load('40px Bungee'),
+    document.fonts.load('40px Teko'),
+    document.fonts.load('600 40px Teko'),
+    document.fonts.load('700 40px "Space Grotesk"'),
+  ]);
+  await Promise.race([wait, new Promise((r) => setTimeout(r, 2500))]).catch(() => {});
+}
+
+// Fly-through path: starts up in the rafters, sweeps past the jumbotron,
+// dives under one hoop and lands on the broadcast camera position.
+const INTRO_POS = [
+  [34, 21, 26], [20, 17, 16], [4, 15.5, 9], [-12, 10, 9], [-18, 4.5, 3],
+  [-15.6, 3.2, -1.5], [-8, 2.4, -5], [0, 3.5, 8], [0, 9.6, 18.8],
+];
+const INTRO_LOOK = [
+  [0, 8, 0], [0, 12, 0], [0, 14, 0], [-10, 4, 0], [-12.75, 3.05, 0],
+  [-12.75, 3.05, 0], [0, 1.5, 0], [0, 1.2, 0], [0, 0.9, 0.6],
+];
+const INTRO_LEN = 9.5;
+
+class App {
+  async init() {
+    await loadFonts();
+    this.settings = storage.settings;
+    const q = this.settings.quality;
+    const dpr = window.devicePixelRatio || 1;
+    this.renderer = new THREE.WebGLRenderer({
+      canvas: document.getElementById('game'),
+      antialias: q === 'high',
+      powerPreference: 'high-performance',
+    });
+    this.renderer.setPixelRatio(q === 'low' ? Math.min(0.75, dpr) : q === 'medium' ? Math.min(1, dpr) : Math.min(2, dpr));
+    if (q === 'high') {
+      this.renderer.shadowMap.enabled = true;
+      this.renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+    }
+
+    this.scene = new THREE.Scene();
+    this.scene.background = new THREE.Color(0x07080f);
+    this.scene.fog = new THREE.Fog(0x07080f, 45, 140);
+    this.camera = new THREE.PerspectiveCamera(45, 1, 0.1, 300);
+    this.arena = new Arena(this.renderer, q);
+    this.scene.add(this.arena.group);
+    this.particles = new Particles(q === 'low' ? 400 : 800);
+    this.scene.add(this.particles.points);
+    this.rig = new CameraRig(this.camera);
+    this.hud = new Hud();
+    this.menus = new Menus(this);
+    this.world = null;
+    this.state = 'title';
+    this.applySettings();
+    this.arena.setSpotlights(true, [0xff7a1a, 0x4aa3ff]);
+
+    this.resize();
+    window.addEventListener('resize', () => this.resize());
+    document.addEventListener('visibilitychange', () => {
+      if (document.hidden && this.state === 'play') this.pause();
+    });
+    // Audio must start from a real user gesture.
+    const unlock = () => audio.init();
+    window.addEventListener('pointerdown', unlock);
+    window.addEventListener('keydown', unlock);
+
+    this.menus.show('title');
+    const load = document.getElementById('loading');
+    load.classList.add('fade');
+    setTimeout(() => load.remove(), 600);
+
+    this.last = performance.now();
+    this.renderer.setAnimationLoop((t) => this.frame(t));
+  }
+
+  resize() {
+    const w = window.innerWidth, h = window.innerHeight;
+    this.renderer.setSize(w, h, false);
+    this.camera.aspect = w / h;
+    this.camera.updateProjectionMatrix();
+  }
+
+  applySettings(key) {
+    const s = storage.settings;
+    audio.setVolumes({ music: s.music, sfx: s.sfx, crowd: s.crowd });
+    audio.announcer = s.announcer;
+    this.hud.showHints = s.hints;
+    if (key === 'announcer' && !s.announcer) audio.stopSpeech();
+    if (key === 'camera' && this.world instanceof Match && this.state !== 'intro') {
+      this.rig.setMode(s.camera === 'player' ? 'player' : 'broadcast');
+    }
+    if (key === 'difficulty' && this.world) this.world.difficulty = s.difficulty;
+  }
+
+  // ------------------------------------------------------------- flow
+  leaveTitle() {
+    audio.init();
+    audio.playMusic('menu');
+    audio.setCrowd(0.5);
+    audio.ui('select');
+    this.state = 'menu';
+    this.menus.show('main');
+  }
+
+  clearWorld() {
+    if (this.world) {
+      this.world.dispose();
+      this.world = null;
+    }
+    this.hud.show(false);
+    this.hud.introCard(null);
+    document.getElementById('skip-hint').classList.add('hidden');
+  }
+
+  startMatch(cfg) {
+    this.clearWorld();
+    this.lastMatch = cfg;
+    this.menus.hide();
+    const m = new Match(this, cfg);
+    this.world = m;
+    const home = cfg.home, away = m.teams[1].data;
+    this.arena.setCrowdColors(home.primary, away.primary);
+    this.arena.setBenchColors(home.primary, away.primary);
+    this.arena.setLedColors(home.primary, away.primary);
+    this.arena.setSpotlights(true, [home.primary, away.primary, 0xffffff]);
+    this.arena.jumboDraw({ logo: true, sub: `${home.abbr} vs ${away.abbr}` });
+    m.userEnabled = false;
+    m.onFinished = (res) => this.finishMatch(res);
+
+    this.hud.show(true);
+    this.hud.mode('none');
+    this.hud.setHints([]);
+    this.state = 'intro';
+    this.introT = 0;
+    this.introCues = new Set();
+    audio.playMusic('intro');
+    audio.setCrowd(1.4);
+    audio.cheer(1, 3);
+    document.getElementById('skip-hint').classList.remove('hidden');
+    this.rig.playIntro(INTRO_POS, INTRO_LOOK, INTRO_LEN, () => this.beginMatchPlay());
+  }
+
+  introTimeline(dt) {
+    this.introT += dt;
+    const t = this.introT;
+    const m = this.world;
+    const home = m.teams[0].data, away = m.teams[1].data;
+    const cue = (name, at, fn) => {
+      if (t >= at && !this.introCues.has(name)) {
+        this.introCues.add(name);
+        fn();
+      }
+    };
+    cue('welcome', 0.2, () => {
+      this.hud.introCard('<span class="rs-logo"><span class="a">retrac</span><span class="b">.space</span></span> ARENA', 'WELCOME TO', true);
+      audio.announce('Welcome to the retrac dot space Arena!', { force: true });
+    });
+    cue('teams', 3.4, () => {
+      this.hud.introCard(`${home.abbr}  VS  ${away.abbr}`, `${home.city.toUpperCase()} ${home.name.toUpperCase()} vs ${away.city.toUpperCase()} ${away.name.toUpperCase()}`);
+      audio.announce(`Tonight, the ${away.city} ${away.name} take on your ${home.city} ${home.name}!`);
+      this.arena.cheer(0.7);
+    });
+    cue('pyro', 6.0, () => {
+      audio.boom();
+      audio.cheer(1.5, 3);
+      this.arena.cheer(1);
+      this.rig.shake(0.25);
+    });
+    if (t > 6.0 && t < 8.0) {
+      const cols = [home.primary, away.primary, 0xffd60a, 0xffffff];
+      for (const [x, z] of [[-15.5, -8.8], [-15.5, 8.8], [15.5, -8.8], [15.5, 8.8]]) {
+        this.particles.emit(new THREE.Vector3(x, 0.4, z), 2, { colors: cols, speed: 0.6, up: 11, gravity: 8, life: 1.6, size: 0.22, jitter: 0.3 });
+      }
+    }
+    cue('letsplay', 7.4, () => {
+      this.hud.introCard("LET'S PLAY!", `YOU ARE #${m.user.data.num} ${m.user.name.toUpperCase()}`);
+    });
+  }
+
+  beginMatchPlay() {
+    const m = this.world;
+    if (!(m instanceof Match)) return;
+    this.state = 'play';
+    this.hud.introCard(null);
+    document.getElementById('skip-hint').classList.add('hidden');
+    this.arena.setSpotlights(false);
+    audio.playMusic('game', 0.45);
+    audio.setCrowd(1);
+    this.hud.mode('match');
+    m.userEnabled = true;
+    this.rig.setMode(storage.settings.camera === 'player' ? 'player' : 'broadcast');
+    m.startTipoff();
+  }
+
+  finishMatch(res) {
+    storage.recordGame({ won: res.won, points: res.user ? res.user.pts : 0 });
+    this.state = 'results';
+    this.hud.show(false);
+    audio.playMusic('menu', 0.8);
+    this.menus.show('results', res);
+  }
+
+  rematch() {
+    if (this.lastMatch) this.startMatch(this.lastMatch);
+  }
+
+  startArcade(cfg) {
+    this.clearWorld();
+    this.lastArcade = cfg;
+    this.menus.hide();
+    const a = new Arcade(this, { ...cfg, difficulty: storage.settings.difficulty });
+    this.world = a;
+    this.arena.setCrowdColors(cfg.team.primary, 0xff7a1a);
+    this.arena.setLedColors(cfg.team.primary, 0xffd60a);
+    this.arena.setSpotlights(false);
+    this.arena.jumboDraw({ message: a.def.title, sub: `#${cfg.player.num} ${cfg.player.name.toUpperCase()}` });
+    a.onFinished = (res) => {
+      const record = res.mode !== 'practice' && storage.submitRecord(res.mode, res.score);
+      this.state = 'results';
+      this.hud.show(false);
+      if (record) {
+        audio.cheer(1.5, 3);
+        audio.announce('A new record!', { force: true });
+      }
+      this.menus.show('arcadeResults', { ...res, record });
+    };
+    this.hud.show(true);
+    this.hud.mode('arcade');
+    this.state = 'play';
+    audio.playMusic('game', 0.4);
+    audio.setCrowd(0.7);
+  }
+
+  replayArcade() {
+    if (this.lastArcade) this.startArcade(this.lastArcade);
+  }
+
+  startTutorial() {
+    this.clearWorld();
+    this.menus.hide();
+    const t = new Tutorial(this);
+    this.world = t;
+    this.arena.setSpotlights(false);
+    this.arena.jumboDraw({ message: 'TUTORIAL', sub: 'BASKETSMASH ACADEMY' });
+    t.onFinished = () => {
+      storage.markTutorialDone();
+      audio.announce("You're ready. Let's play!", { force: true });
+      this.quitToMenu();
+    };
+    this.hud.show(true);
+    this.hud.mode('tutorial');
+    this.state = 'play';
+    audio.playMusic('game', 0.35);
+    audio.setCrowd(0.4);
+  }
+
+  pause() {
+    if (this.state !== 'play') return;
+    this.state = 'paused';
+    audio.setMusicLevel(0.15);
+    audio.stopSpeech();
+    this.menus.show('pause');
+  }
+
+  resume() {
+    if (this.state !== 'paused') return;
+    this.menus.hide();
+    this.state = 'play';
+    audio.setMusicLevel(this.world instanceof Match ? 0.45 : 0.4);
+  }
+
+  quitToMenu(showMain = true) {
+    this.clearWorld();
+    this.state = 'menu';
+    this.rig.setMode('menu');
+    audio.stopSpeech();
+    if (audio.trackName !== 'menu' || !audio.track) audio.playMusic('menu');
+    audio.setCrowd(0.5);
+    this.arena.setSpotlights(true, [0xff7a1a, 0x4aa3ff]);
+    this.arena.setLedColors(0xff7a1a, 0x1d6bff);
+    this.arena.jumboDraw({ logo: true, sub: 'ARENA' });
+    this.arena.exciteTarget = 0;
+    if (showMain) this.menus.show('main');
+  }
+
+  // ------------------------------------------------------------- loop
+  frame(now) {
+    const dt = Math.min(0.05, (now - this.last) / 1000);
+    this.last = now;
+    input.update();
+    const w = this.world;
+
+    switch (this.state) {
+      case 'title':
+      case 'menu':
+      case 'results':
+        if (this.state !== 'results') this.rig.mode = 'menu';
+        this.menus.update(dt);
+        break;
+      case 'intro':
+        this.introTimeline(dt);
+        if (w) w.update(dt);
+        if (this.introT > 0.7 && input.anyPressed) {
+          audio.stopSpeech();
+          this.rig.skipIntro();
+        }
+        break;
+      case 'play':
+        if (input.pressed('pause')) {
+          this.pause();
+          break;
+        }
+        if (input.pressed('camera') && w instanceof Match) {
+          const next = storage.settings.camera === 'player' ? 'broadcast' : 'player';
+          storage.setSetting('camera', next);
+          this.rig.setMode(next);
+          this.hud.toast(next === 'player' ? 'PLAYER CAM' : 'BROADCAST CAM');
+        }
+        if (w) w.update(dt * w.timeScale);
+        break;
+      case 'paused':
+        this.menus.update(dt);
+        break;
+    }
+
+    const ctx = w && w.cameraContext ? w.cameraContext() : {};
+    this.rig.update(dt, ctx);
+    this.arena.update(dt);
+    this.particles.update(dt);
+    this.hud.updateMeter(this.state === 'play' && w ? w.meter : null, this.camera, window.innerWidth, window.innerHeight);
+    this.renderer.render(this.scene, this.camera);
+  }
+}
+
+new App().init();
