@@ -46,7 +46,7 @@ const VIEW_NAMES = { pov: 'FIRST PERSON', third: 'THIRD PERSON', court: 'COURT' 
 
 class App {
   async init() {
-    initTabBranding();
+    initTabBranding((inactive) => audio.setMuted(inactive));
     await loadFonts();
     this.settings = storage.settings;
     const q = this.settings.quality;
@@ -98,8 +98,9 @@ class App {
       const exited = this.wasFullscreen && !active;
       this.wasFullscreen = active;
       if (exited && !this.fullscreenBusy && ['play', 'intro', 'paused'].includes(this.state)) {
+        this.fullscreenResumePending = true;
+        this.suppressPause = true;
         this.pause();
-        this.menus.show('fullscreenExit');
       }
     });
 
@@ -225,6 +226,7 @@ class App {
   }
 
   clearWorld() {
+    this.fullscreenResumePending = false;
     if (this.world) {
       this.world.dispose();
       this.world = null;
@@ -399,6 +401,11 @@ class App {
   resume(fullscreenChoice = false) {
     if (this.state !== 'paused') return;
     if (this.menus.screen === 'fullscreenExit' && !fullscreenChoice) return;
+    if (this.fullscreenResumePending && !document.fullscreenElement && !fullscreenChoice) {
+      this.menus.show('fullscreenExit');
+      return;
+    }
+    this.fullscreenResumePending = false;
     this.menus.hide();
     this.state = this.pausedState || 'play';
     audio.setMusicLevel(this.state === 'intro' ? 1 : this.world instanceof Match ? 0.45 : 0.4);
@@ -424,6 +431,11 @@ class App {
     const dt = Math.min(0.05, (now - this.last) / 1000);
     this.last = now;
     input.update();
+    // Esc leaving fullscreen must not also dismiss the pause menu it just opened.
+    if (this.suppressPause) {
+      input.consume('pause');
+      this.suppressPause = input.held('pause');
+    }
     const w = this.world;
 
     switch (this.state) {

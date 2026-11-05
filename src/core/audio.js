@@ -66,6 +66,7 @@ const TRACKS = {
 class AudioEngine {
   constructor() {
     this.ctx = null;
+    this.muted = false;
     this.vol = { music: 0.6, sfx: 0.8, crowd: 0.7 };
     this.track = null;
     this.step = 0;
@@ -86,7 +87,11 @@ class AudioEngine {
     this.master = ctx.createDynamicsCompressor();
     this.master.threshold.value = -14;
     this.master.ratio.value = 4;
-    this.master.connect(ctx.destination);
+    // A separate output gate keeps inactive-tab muting independent of saved volumes.
+    this.outputGain = ctx.createGain();
+    this.outputGain.gain.value = this.muted ? 0 : 1;
+    this.master.connect(this.outputGain);
+    this.outputGain.connect(ctx.destination);
 
     this.musicBus = ctx.createGain();
     this.sfxBus = ctx.createGain();
@@ -104,6 +109,11 @@ class AudioEngine {
 
     this.startCrowd();
     this.timer = setInterval(() => this.schedule(), 25);
+  }
+
+  setMuted(muted) {
+    this.muted = muted;
+    if (this.outputGain) this.outputGain.gain.setValueAtTime(muted ? 0 : 1, this.now);
   }
 
   setVolumes(v) {
