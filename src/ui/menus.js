@@ -6,6 +6,7 @@ import { input } from '../core/input.js';
 import { DIFF } from '../game/shooting.js';
 import { getAccountSession, subscribeAccountSession } from '../core/account-session.js';
 import { AccountSignIn, accountIconUrl } from './account-sign-in.js';
+import { LeaderboardPanel, submissionMarkup } from './leaderboards.js';
 
 const BALL = '<span class="bball"></span>';
 const LOGO = '<span class="rs-logo"><span class="a">retrac</span><span class="b">.space</span></span>';
@@ -65,6 +66,7 @@ export class Menus {
     this.focus = 0;
     this.navCd = 0;
     this.accountDialog = new AccountSignIn(this);
+    this.leaderboards = new LeaderboardPanel(this);
     subscribeAccountSession(() => this.updateAccountCard());
     // A returned DOM focus on the account button should use a direct key gesture.
     this.root.addEventListener('keydown', (event) => {
@@ -133,6 +135,13 @@ export class Menus {
     this.setFocus(Math.max(0, index), false);
   }
 
+  updateScoreSubmission(result, state) {
+    result.leaderboardSubmission = state;
+    if (this.data !== result || !['results', 'arcadeResults'].includes(this.screen)) return;
+    const slot = this.root.querySelector('.score-submission');
+    if (slot) slot.innerHTML = submissionMarkup(state);
+  }
+
   setFocus(i, scroll = true) {
     const list = this.navs();
     if (!list.length) return;
@@ -166,6 +175,7 @@ export class Menus {
         <div class="board-title">MAIN MENU</div>
         ${btn('play', 'PLAY GAME', { sub: '3-ON-3 FULL COURT EXHIBITION' })}
         ${btn('arcade', 'ARCADE', { sub: 'SHOOTOUT · AROUND THE WORLD · HOT SPOTS' })}
+        ${btn('leaderboards', 'LEADERBOARDS', { sub: 'GLOBAL RANKINGS · PERSONAL BESTS', cls: 'dark' })}
         ${btn('tutorial', 'TUTORIAL', { sub: 'LEARN THE MOVES', badge: newb ? 'START HERE' : '' })}
         ${btn('howto', 'HOW TO PLAY', { sub: 'CONTROLS & SHOOTING', cls: 'dark' })}
         ${btn('settings', 'SETTINGS', { sub: 'AUDIO · CAMERA · GRAPHICS', cls: 'dark' })}
@@ -374,6 +384,7 @@ export class Menus {
         <div class="fs-num">${away.score}</div><div class="fs-team">${abbr(away)}</div>
       </div>
       <div class="verdict ${won ? 'win' : 'loss'}">${won ? 'VICTORY!' : 'DEFEAT'}</div>
+      <div class="score-submission" role="status" aria-live="polite">${submissionMarkup(d.leaderboardSubmission)}</div>
       ${table(home, homeBox)}
       ${table(away, awayBox)}
       <div class="btn-row">
@@ -394,6 +405,7 @@ export class Menus {
       <div class="arcade-sub">${sub}</div>
       ${d.mode !== 'practice' ? `<div class="arcade-sub">BEST: ${storage.records[d.mode] ?? 0}</div>` : ''}
       ${d.record ? '<div class="record">NEW RECORD!</div>' : ''}
+      <div class="score-submission" role="status" aria-live="polite">${submissionMarkup(d.leaderboardSubmission)}</div>
       <div class="btn-row">
         <button class="btn nav" data-act="again" data-focus>${BALL}<span class="label">PLAY AGAIN</span></button>
         ${btn('arcade', 'ARCADE MENU', { cls: 'dark' })}
@@ -426,6 +438,9 @@ export class Menus {
     if (act === 'back') audio.ui('back');
     else audio.ui('select');
     switch (act) {
+      case 'leaderboards':
+        this.leaderboards.show();
+        break;
       case 'account':
         this.accountDialog.show();
         break;
@@ -579,7 +594,7 @@ export class Menus {
 
   // ------------------------------------------------------------ input
   update(dt) {
-    if (this.accountDialog.isOpen) return;
+    if (this.accountDialog.isOpen || this.leaderboards.isOpen) return;
     if (!this.screen) return;
     if (this.screen === 'title') {
       if (input.anyPressed) this.app.leaveTitle();
