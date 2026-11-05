@@ -18,6 +18,7 @@ import { audio } from './core/audio.js';
 import { storage } from './core/storage.js';
 import { initTabBranding } from './core/tab-branding.js';
 import { initAccountWelcome } from './ui/account-welcome.js';
+import { LEADERBOARDS, submitCompletedScore } from './core/leaderboards.js';
 
 async function loadFonts() {
   if (!document.fonts) return;
@@ -255,7 +256,10 @@ class App {
     this.arena.setSpotlights(true, [home.primary, away.primary, 0xffffff]);
     this.arena.jumboDraw({ logo: true, sub: `${home.abbr} vs ${away.abbr}` });
     m.userEnabled = false;
-    m.onFinished = (res) => this.finishMatch(res);
+    m.onFinished = (res) => {
+      if (this.world !== m || this.state !== 'play' || m.phase !== 'final') return;
+      this.finishMatch(res, m);
+    };
 
     this.hud.show(true);
     this.hud.mode('none');
@@ -322,13 +326,15 @@ class App {
     this.applyView(true);
   }
 
-  finishMatch(res) {
+  finishMatch(res, match) {
     this.unlockMouse();
     storage.recordGame({ won: res.won, points: res.user ? res.user.pts : 0 });
     this.state = 'results';
     this.hud.show(false);
     audio.playMusic('menu', 0.8);
     this.menus.show('results', res);
+    submitCompletedScore(match, 'play-game', res.home.score,
+      (state) => this.menus.updateScoreSubmission(res, state));
   }
 
   rematch() {
@@ -347,6 +353,7 @@ class App {
     this.arena.setSpotlights(false);
     this.arena.jumboDraw({ message: a.def.title, sub: `#${cfg.player.num} ${cfg.player.name.toUpperCase()}` });
     a.onFinished = (res) => {
+      if (this.world !== a || this.state !== 'play' || !a.ended || !a.started) return;
       this.unlockMouse();
       const record = res.mode !== 'practice' && storage.submitRecord(res.mode, res.score);
       this.state = 'results';
@@ -355,7 +362,11 @@ class App {
         audio.cheer(1.5, 3);
         audio.commentary('A new record!', { force: true });
       }
-      this.menus.show('arcadeResults', { ...res, record });
+      const result = { ...res, record };
+      this.menus.show('arcadeResults', result);
+      const board = LEADERBOARDS.find((b) => b.mode === a.mode);
+      if (board) submitCompletedScore(a, board.id, res.score,
+        (state) => this.menus.updateScoreSubmission(result, state));
     };
     this.hud.show(true);
     this.hud.mode('arcade');
