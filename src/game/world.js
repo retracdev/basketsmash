@@ -116,11 +116,11 @@ export class PlayWorld {
   }
 
   // ------------------------------------------------------- user input
-  // First-person look: mouse (pointer lock), right stick or left/right arrows.
+  // First/third-person look: mouse (pointer lock), right stick or left/right arrows.
   povLook(dt) {
     const rig = this.app.rig;
     const m = input.takeMouse();
-    if (!rig.isPov) return;
+    if (!rig.usesLook) return;
     rig.addLook(-m.dx * 0.0024, -m.dy * 0.0024);
     rig.addLook(-input.turn * 2.4 * dt, input.lookY * 1.4 * dt);
   }
@@ -130,8 +130,9 @@ export class PlayWorld {
     const rig = this.app.rig;
     this.povLook(dt);
     const pov = rig.isPov;
+    const look = rig.usesLook;
     const { fwd, right } = rig.basis();
-    const axis = pov ? input.povAxis : input.axis;
+    const axis = look ? input.povAxis : input.axis;
     const ax = axis.x, ay = axis.y;
     let mx = right.x * ax + fwd.x * ay;
     let mz = right.z * ax + fwd.z * ay;
@@ -159,7 +160,7 @@ export class PlayWorld {
 
     if (u.hasBall) {
       if (input.pressed('shoot')) this.beginShot(u);
-      if (input.pressed('pass') && !u.locked()) this.userPass(u, mx, mz, pov ? fwd : null);
+      if (input.pressed('pass') && !u.locked()) this.userPass(u, mx, mz, look ? fwd : null);
       if (input.pressed('move') && !u.locked()) this.crossover(u);
     } else {
       if (input.pressed('shoot') && !u.airborne && !u.locked()) {
@@ -563,6 +564,7 @@ export class PlayWorld {
   callForBall(u, holder) {
     if (holder.isUser) return;
     this.app.hud.toast('BALL!', 'call');
+    u.callT = 1.0; // first-person hand wave
     holder.calledBy = u;
     holder.callT = 1.5;
   }

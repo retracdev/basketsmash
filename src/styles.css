@@ -466,12 +466,20 @@ kbd {
 }
 #view-btn:hover { border-color: var(--led); }
 #view-btn::before { content: 'VIEW:'; color: #889; }
+#crosshair {
+  position: absolute; left: 50%; top: 50%; width: 6px; height: 6px; margin: -3px 0 0 -3px; border-radius: 50%;
+  background: rgba(255, 255, 255, 0.75); box-shadow: 0 0 0 2px rgba(0, 0, 0, 0.35);
+}
 #look-hint {
   position: absolute; left: 50%; top: 18px; transform: translateX(-50%);
   font-family: var(--title); font-size: 12px; letter-spacing: 2px; color: rgba(255, 255, 255, 0.8);
   background: rgba(10, 13, 24, 0.7); padding: 6px 12px; border-radius: 14px;
 }
-#arcadebar:not(.hidden) ~ #look-hint { top: 92px; }
+#arcadebar:not(.hidden) ~ #crosshair {
+  position: absolute; left: 50%; top: 50%; width: 6px; height: 6px; margin: -3px 0 0 -3px; border-radius: 50%;
+  background: rgba(255, 255, 255, 0.75); box-shadow: 0 0 0 2px rgba(0, 0, 0, 0.35);
+}
+#look-hint { top: 92px; }
 
 @media (max-height: 760px) {
   .card { width: 190px; height: 128px; }

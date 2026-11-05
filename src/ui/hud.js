@@ -31,6 +31,7 @@ export class Hud {
     this.noticeEl = $('notice');
     this.viewBtn = $('view-btn');
     this.lookHint = $('look-hint');
+    this.crosshair = $('crosshair');
     this.cache = {};
     this.showHints = true;
   }
@@ -130,6 +131,10 @@ export class Hud {
   setView(name, show = true) {
     this.viewBtn.classList.toggle('hidden', !show);
     $('view-name').textContent = name;
+  }
+
+  setCrosshair(show) {
+    this.crosshair.classList.toggle('hidden', !show);
   }
 
   setLookHint(show) {
