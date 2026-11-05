@@ -33,11 +33,13 @@ and sound effects, so there are no third-party art or audio assets.
 | Camera (first person / third person / court) | C | Y |
 | Pause | Esc | Start |
 
-**Auto Camera** is on by default in first and third person: it follows the rim when you have the ball
-and the ball when you don't. Tutorial and arcade views follow the current target. You can play using
-just the keyboard on a trackpad. Mouse, arrow-key, and right-stick look temporarily override it;
-automatic tracking eases back in when you stop looking. Turn **Auto Camera OFF** in Settings for
-full manual look. The setting is saved locally and applies immediately.
+**Auto Camera** defaults to **MAX** in first and third person: it turns and looks up/down to follow
+the rim when you have the ball and the ball when you don't, including high shots and nearby targets.
+Tutorial and arcade views follow the current target. MAX keeps tracking height while you use arrow
+keys to turn, so you can play using just the keyboard on a trackpad. Manual vertical look temporarily
+overrides height tracking; assistance eases back in afterward. Settings also offers **ON** for the
+previous gentle tracking with limited vertical movement, and **OFF** for full manual look. Existing
+enabled saves upgrade to MAX; disabled saves stay OFF. The setting saves locally and applies immediately.
 
 ## Development
 
