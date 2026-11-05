@@ -1,4 +1,5 @@
 import './account-welcome.css';
+import { checkAccountSession, getAccountSession } from '../core/account-session.js';
 
 const greetings = [
   (username) => `Welcome back, ${username}`,
@@ -9,36 +10,20 @@ const greetings = [
 ];
 
 let sessionChecked = false;
+let welcomeShown = false;
 
 // Called only from page startup, independently of game loading and scene changes.
 export function initAccountWelcome() {
   if (sessionChecked) return;
   sessionChecked = true;
-  void checkSession();
+  void checkAccountSession().then(welcomeAuthenticatedAccount);
 }
 
-async function checkSession() {
-  const controller = new AbortController();
-  const timeout = setTimeout(() => controller.abort(), 5000);
-  try {
-    // The browser sends the account host's own cookies; never read or copy tokens.
-    const response = await fetch('https://accounts.retrac.space/api/auth/get-session', {
-      method: 'GET',
-      credentials: 'include',
-      signal: controller.signal,
-      cache: 'no-store',
-    });
-    if (!response.ok) return;
-    const session = await response.json();
-    const username = session?.user?.username;
-    if (!controller.signal.aborted && typeof username === 'string' && username.trim()) {
-      showWelcomePill(username);
-    }
-  } catch {
-    // Guests, timeouts, network failures, and CORS denials never interrupt play.
-  } finally {
-    clearTimeout(timeout);
-  }
+export function welcomeAuthenticatedAccount() {
+  const session = getAccountSession();
+  if (welcomeShown || session.status !== 'authenticated') return;
+  welcomeShown = true;
+  showWelcomePill(session.username);
 }
 
 function showWelcomePill(username) {
