@@ -45,12 +45,14 @@ enabled saves upgrade to MAX; disabled saves stay OFF. The setting saves locally
 
 Before each game, rematch, arcade round, or tutorial, a fullscreen prompt lets you choose
 **Turn on fullscreen** or **Keep fullscreen off**. Your last choice is saved and highlighted next time;
-the prompt still appears each round. Exiting fullscreen during the intro or gameplay pauses it and
-asks whether to re-enter fullscreen or continue without it. If the browser blocks fullscreen, the
-prompt stays open so you can retry or choose to play without it.
+the prompt still appears each round. Exiting fullscreen during the intro or gameplay opens the normal
+pause menu, including Settings and How to Play. Choosing Resume then asks whether to re-enter fullscreen
+or continue without it. If the browser blocks fullscreen, the prompt stays open so you can retry or
+choose to play without it.
 
 While the tab or window is inactive, its title changes to **retrac.space** and it uses the alternate
-robot favicon. Returning restores the Basketsmash title and basketball favicon.
+robot favicon, and all game audio is muted. Returning restores the Basketsmash title, basketball favicon,
+and audio at your current volume settings; paused gameplay stays paused.
 
 ```bash
 npm install

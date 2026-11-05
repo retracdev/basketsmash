@@ -1,11 +1,12 @@
 // Restore the game's identity whenever the player returns to this tab/window.
-export function initTabBranding() {
+export function initTabBranding(onInactiveChange) {
   const title = document.title;
   const icon = document.querySelector('link[rel="icon"]');
   const originalIcon = icon?.getAttribute('href');
   const alternateIcon = new URL(`${import.meta.env.BASE_URL}alt-favicon.png`, document.baseURI).href;
   const update = () => {
     const inactive = document.hidden || !document.hasFocus();
+    onInactiveChange(inactive);
     document.title = inactive ? 'retrac.space' : title;
     if (icon) icon.setAttribute('href', inactive ? alternateIcon : originalIcon);
   };
