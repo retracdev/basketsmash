@@ -17,6 +17,7 @@ import { input } from './core/input.js';
 import { audio } from './core/audio.js';
 import { storage } from './core/storage.js';
 import { initTabBranding } from './core/tab-branding.js';
+import { initAccountWelcome } from './ui/account-welcome.js';
 
 async function loadFonts() {
   if (!document.fonts) return;
@@ -46,6 +47,7 @@ const VIEW_NAMES = { pov: 'FIRST PERSON', third: 'THIRD PERSON', court: 'COURT' 
 
 class App {
   async init() {
+    initAccountWelcome();
     initTabBranding((inactive) => audio.setMuted(inactive));
     await loadFonts();
     this.settings = storage.settings;
